@@ -1,0 +1,14 @@
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.coverprofile
+*.log
+coverage/
+dist/
+bin/
+tmp/
