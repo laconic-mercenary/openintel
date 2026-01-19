@@ -10,12 +10,12 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"openintel.jp/rover-api/internal/config"
-	"openintel.jp/rover-api/internal/security"
-	"openintel.jp/rover-api/internal/server"
-	"openintel.jp/rover-api/internal/storage"
-	"openintel.jp/rover-api/internal/time"
-	"openintel.jp/rover-api/internal/validation"
+	"openintel.jp/roverapi/internal/config"
+	"openintel.jp/roverapi/internal/security"
+	"openintel.jp/roverapi/internal/server"
+	"openintel.jp/roverapi/internal/storage"
+	"openintel.jp/roverapi/internal/time"
+	"openintel.jp/roverapi/internal/validation"
 )
 
 //
@@ -33,7 +33,7 @@ var (
 
 const (
 	authTokenFmt    = "%s$$%s$$%s"
-	authCodeMax     = 1000000
+	authCodeMax     = 1000000 // 6 digit login code
 	authTokenMaxLen = math.MaxUint8
 )
 

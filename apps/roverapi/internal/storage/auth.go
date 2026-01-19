@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/rs/zerolog/log"
-	"openintel.jp/rover-api/internal/time"
+	"openintel.jp/roverapi/internal/time"
 )
 
 //

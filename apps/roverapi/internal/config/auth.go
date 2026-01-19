@@ -33,11 +33,16 @@ var (
 
 const (
 	authEnvPrefix   = "ROVERAPI_AUTH"
+	roverEnvPrefix  = "ROVERAPI_"
 	jwtSecretMinLen = 32
 )
 
 //
 // Functions
+
+func ServerlessMode() bool {
+	return true
+}
 
 func AuthRateLimiterAttempts() uint {
 	envStr := getRequiredEnv(envAuthRateLimiterAttempts)
@@ -109,7 +114,7 @@ func LoginCodeSenderEmail() string {
 }
 
 func LoginCodeExpiry() uint {
-	// return 60 * 10
+	// return 60 * 10 // suggested value: 600 (10 minutes)
 	envStr := getRequiredEnv(envAuthLoginCodeExpiry)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {
