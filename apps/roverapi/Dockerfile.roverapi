@@ -1,0 +1,32 @@
+FROM golang:1.25-alpine AS builder
+
+LABEL org.opencontainers.image.source="https://github.com/laconic-mercenary/openintel"
+LABEL org.opencontainers.image.description="openintel-roverapi"
+LABEL org.opencontainers.image.licenses="UNLICENSED"
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o roverapi.app ./cmd/rover
+
+FROM alpine:latest
+
+RUN addgroup -g 1001 -S roverapi && \
+    adduser -u 1001 -S roverapi -G roverapi
+
+WORKDIR /app
+
+COPY --from=builder /app/roverapi.app .
+
+RUN chown -R roverapi:roverapi /app
+
+USER roverapi
+
+EXPOSE 8081
+
+CMD ["./roverapi.app"]

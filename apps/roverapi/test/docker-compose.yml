@@ -1,0 +1,58 @@
+services:
+  authapi:
+    build:
+      context: ..
+      dockerfile: Dockerfile.authapi
+    ports:
+      - "8080:8080"
+    environment:
+      # Required auth configuration
+      ROVERAPI_AUTH_EMAIL_HASH_PEPPER: "your-pepper-here-change-in-production"
+      ROVERAPI_AUTH_ALLOWED_DOMAINS: "http://localhost:3000,http://localhost:8080"
+      ROVERAPI_AUTH_COOKIE_EXPIRY_SECS: "86400"  # 24 hours
+      ROVERAPI_AUTH_JWT_SECRET: "your-jwt-secret-must-be-at-least-32-bytes-long"
+      ROVERAPI_AUTH_EMAIL_LOGIN_DOMAIN: "http://localhost:8080"
+      ROVERAPI_AUTH_LOGIN_CODE_SENDER: "noreply@example.com"
+      ROVERAPI_AUTH_LOGIN_CODE_EXPIRY: "300"
+      # Rate limiter configuration
+      ROVERAPI_AUTH_RATELIMITER_ATTEMPTS: "5"
+      ROVERAPI_AUTH_RATELIMITER_WINDOW: "60"
+      ROVERAPI_AUTH_RATELIMITER_DISABLE_DURATION: "1800"
+      # Argon2 configuration
+      ROVERAPI_AUTH_ARGON2_MEMORY: "65536"  # 64 KiB
+      ROVERAPI_AUTH_ARGON2_ITERATIONS: "3"
+      ROVERAPI_AUTH_ARGON2_PARALLELISM: "2"
+      ROVERAPI_AUTH_ARGON2_SALT_LENGTH: "16"
+      ROVERAPI_AUTH_ARGON2_KEY_LENGTH: "64"
+    networks:
+      - roverapi-net
+
+  roverapi:
+    build:
+      context: ..
+      dockerfile: Dockerfile.roverapi
+    ports:
+      - "8081:8081"
+    environment:
+      # Add rover-specific env vars here as needed
+      ROVERAPI_LOG_LEVEL: "debug"
+    networks:
+      - roverapi-net
+    depends_on:
+      - authapi
+
+  rover-ui:
+    build:
+      context: ../../rover
+      dockerfile: Dockerfile
+    ports:
+      - "8085:80"
+    networks:
+      - roverapi-net
+    depends_on:
+      - authapi
+      - roverapi
+
+networks:
+  roverapi-net:
+    driver: bridge

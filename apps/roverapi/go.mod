@@ -1,4 +1,4 @@
-module openintel.jp/rover-api
+module openintel.jp/roverapi
 
 go 1.25.5
 

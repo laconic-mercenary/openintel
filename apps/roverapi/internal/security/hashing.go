@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/argon2"
-	"openintel.jp/rover-api/internal/config"
+	"openintel.jp/roverapi/internal/config"
 )
 
 //

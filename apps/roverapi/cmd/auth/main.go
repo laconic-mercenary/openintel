@@ -11,14 +11,14 @@ import (
 	gotime "time"
 
 	"github.com/rs/zerolog/log"
-	"openintel.jp/rover-api/internal/config"
-	"openintel.jp/rover-api/internal/logging"
-	"openintel.jp/rover-api/internal/security"
-	"openintel.jp/rover-api/internal/server"
-	"openintel.jp/rover-api/internal/storage"
-	"openintel.jp/rover-api/internal/time"
-	"openintel.jp/rover-api/internal/validation"
-	"openintel.jp/rover-api/pkg/auth"
+	"openintel.jp/roverapi/internal/config"
+	"openintel.jp/roverapi/internal/logging"
+	"openintel.jp/roverapi/internal/security"
+	"openintel.jp/roverapi/internal/server"
+	"openintel.jp/roverapi/internal/storage"
+	"openintel.jp/roverapi/internal/time"
+	"openintel.jp/roverapi/internal/validation"
+	"openintel.jp/roverapi/pkg/auth"
 )
 
 //
@@ -242,37 +242,11 @@ func newAuthHandler() *AuthHandler {
 	}
 }
 
-//
-// Main
+func applyMiddleware(allowedMethod string, handler http.HandlerFunc) http.HandlerFunc {
+	return server.WithOriginCheck(config.AllowedAuthOrigins(), server.WithMethodCheck(allowedMethod, handler))
+}
 
-func main() {
-	log.Info().Msg("starting up...")
-
-	authHandler := newAuthHandler()
-
-	allowedOrigins := config.AllowedAuthOrigins()
-
-	emailLinkHandler := server.WithOriginCheck(allowedOrigins, server.WithMethodCheck(http.MethodPost, authHandler.handleEmailLink))
-	getCodeHandler := server.WithOriginCheck(allowedOrigins, server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode))
-	codeHandler := server.WithOriginCheck(allowedOrigins, server.WithMethodCheck(http.MethodPost, authHandler.handleCode))
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/health", handleHealth)
-	mux.HandleFunc("/auth/email-link", emailLinkHandler)
-	mux.HandleFunc("/auth/get-code", getCodeHandler)
-	mux.HandleFunc("/auth/code-login", codeHandler)
-
-	apiServer := &http.Server{
-		Addr:    httpPort,
-		Handler: mux,
-	}
-
-	go func() {
-		if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("server error")
-		}
-	}()
-
+func awaitShutdown(apiServer *http.Server) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -287,4 +261,42 @@ func main() {
 	}
 
 	log.Info().Msg("server stopped")
+}
+
+//
+// Main
+
+func main() {
+	log.Info().Msg("starting up...")
+
+	authHandler := newAuthHandler()
+
+	emailLinkHandler := applyMiddleware(http.MethodPost, authHandler.handleEmailLink)
+	getCodeHandler := applyMiddleware(http.MethodGet, authHandler.handleGetCode)
+	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/health", handleHealth)
+	mux.HandleFunc("/auth/email-link", emailLinkHandler)
+	mux.HandleFunc("/auth/get-code", getCodeHandler)
+	mux.HandleFunc("/auth/code-login", codeHandler)
+
+	apiServer := &http.Server{
+		Addr:    httpPort,
+		Handler: mux,
+	}
+
+	if config.ServerlessMode() {
+		log.Info().Msg("serverless mode enabled - blocking on ListenAndServe")
+		if err := apiServer.ListenAndServe(); err != nil {
+			log.Fatal().Err(err).Msg("server error")
+		}
+	} else {
+		go func() {
+			if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatal().Err(err).Msg("server error")
+			}
+		}()
+		awaitShutdown(apiServer)
+	}
 }
