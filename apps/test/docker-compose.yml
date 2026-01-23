@@ -1,14 +1,14 @@
 services:
   authapi:
     build:
-      context: ..
+      context: ../roverapi
       dockerfile: Dockerfile.authapi
     ports:
       - "8080:8080"
     environment:
       # Required auth configuration
       ROVERAPI_AUTH_EMAIL_HASH_PEPPER: "your-pepper-here-change-in-production"
-      ROVERAPI_AUTH_ALLOWED_DOMAINS: "http://localhost:3000,http://localhost:8080"
+      ROVERAPI_AUTH_ALLOWED_DOMAINS: "http://localhost:8085,http://localhost:3000,http://localhost:8080"
       ROVERAPI_AUTH_COOKIE_EXPIRY_SECS: "86400"  # 24 hours
       ROVERAPI_AUTH_JWT_SECRET: "your-jwt-secret-must-be-at-least-32-bytes-long"
       ROVERAPI_AUTH_EMAIL_LOGIN_DOMAIN: "http://localhost:8080"
@@ -29,7 +29,7 @@ services:
 
   roverapi:
     build:
-      context: ..
+      context: ../roverapi
       dockerfile: Dockerfile.roverapi
     ports:
       - "8081:8081"
@@ -43,7 +43,7 @@ services:
 
   rover-ui:
     build:
-      context: ../../rover
+      context: ../rover
       dockerfile: Dockerfile
     ports:
       - "8085:80"

@@ -3,16 +3,44 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #667eea;
+  background: #000000;
   padding: 1rem;
+  border: 2px solid #ffffff;
+  box-sizing: border-box;
 }
 
 .login-card {
-  background: white;
+  background: #1b1b1b;
   padding: 2rem;
   border-radius: 1rem;
   width: 100%;
   max-width: 400px;
+  color: #ffffff;
+}
+
+.login-steps {
+  position: relative;
+  min-height: 140px;
+}
+
+.login-step {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 300ms ease, transform 300ms ease;
+  pointer-events: none;
+}
+
+.login-step.is-active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.login-error {
+  color: red;
+  background-color: black;
 }
 
 .login-title {
@@ -26,7 +54,9 @@
   font-size: 1rem;
   margin-bottom: 1rem;
   border-radius: 0.5rem;
-  border: 2px solid #ddd;
+  border: 2px solid #ffffff;
+  background: #0f0f0f;
+  color: #ffffff;
   box-sizing: border-box;
 }
 
@@ -34,13 +64,13 @@
   width: 100%;
   padding: 1rem;
   font-size: 1rem;
-  background: #667eea;
-  color: white;
-  border: none;
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #ffffff;
   border-radius: 0.5rem;
   cursor: pointer;
 }
 
 .login-button:hover {
-  background: #5568d3;
+  background: #1f1f1f;
 }
