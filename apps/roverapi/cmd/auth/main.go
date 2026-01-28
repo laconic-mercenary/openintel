@@ -82,6 +82,7 @@ func (handler *AuthHandler) handleCode(writer http.ResponseWriter, request *http
 	http.SetCookie(writer, &http.Cookie{
 		Name:     cookieTokenKey,
 		Value:    jwtToken,
+		Domain:   config.AuthCookieDomain(),
 		Path:     "/",
 		MaxAge:   int(expirySecs),
 		HttpOnly: true,
@@ -94,7 +95,8 @@ func (handler *AuthHandler) handleCode(writer http.ResponseWriter, request *http
 		// the cleanup service will catch this
 	}
 
-	server.RespondWithOk(writer, []byte(`{"status":"authenticated"}`))
+	redirectUrl := config.LoginRedirectURL()
+	server.RespondWithOk(writer, fmt.Appendf(nil, `{"status":"authenticated","redirectUrl":"%s"}`, redirectUrl))
 }
 
 func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *http.Request) {
@@ -272,7 +274,7 @@ func main() {
 	authHandler := newAuthHandler()
 
 	emailLinkHandler := applyMiddleware(http.MethodPost, authHandler.handleEmailLink)
-	getCodeHandler := applyMiddleware(http.MethodGet, authHandler.handleGetCode)
+	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode) // no origin check - accessed via direct browser navigation
 	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
 
 	mux := http.NewServeMux()

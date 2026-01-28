@@ -29,6 +29,8 @@ var (
 	envAuthArgon2Parallelism          = fmt.Sprintf(envVarFmt, authEnvPrefix, "ARGON2_PARALLELISM")
 	envAuthArgon2SaltLength           = fmt.Sprintf(envVarFmt, authEnvPrefix, "ARGON2_SALT_LENGTH")
 	envAuthArgon2KeyLength            = fmt.Sprintf(envVarFmt, authEnvPrefix, "ARGON2_KEY_LENGTH")
+	envAuthCookieDomain               = fmt.Sprintf(envVarFmt, authEnvPrefix, "COOKIE_DOMAIN")
+	envAuthLoginRedirectURL           = fmt.Sprintf(envVarFmt, authEnvPrefix, "LOGIN_REDIRECT_URL")
 )
 
 const (
@@ -171,6 +173,14 @@ func Argon2KeyLength() uint32 {
 		log.Fatal().Err(parseErr).Str("envVar", envAuthArgon2KeyLength).Msg("required env var has invalid format (expected integer)")
 	}
 	return uint32(envInt)
+}
+
+func AuthCookieDomain() string {
+	return os.Getenv(envAuthCookieDomain) // empty = scoped to exact host (localhost-friendly)
+}
+
+func LoginRedirectURL() string {
+	return getRequiredEnv(envAuthLoginRedirectURL)
 }
 
 func getRequiredEnv(envVar string) string {

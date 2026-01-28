@@ -108,12 +108,15 @@ func (service *AuthService) SendLoginCode(email string) error {
 func (service *AuthService) GetAuthCode(authToken string) (string, error) {
 	log.Trace().Msg("GetAuthCode")
 	if validation.IsEmptyStr(authToken) {
+		log.Error().Msg("empty auth token provided")
 		return "", ErrInvalidAuthToken
 	}
 	if len(authToken) > authTokenMaxLen {
+		log.Error().Int("tokenLength", len(authToken)).Int("maxLengthAllowed", authTokenMaxLen).Msg("auth token is too long (invalid format)")
 		return "", ErrInvalidAuthToken
 	}
 	if !validation.IsURLEncodedB64(authToken) {
+		log.Error().Str("authToken", authToken).Msg("auth token is not base64 encoded (invalid format)")
 		return "", ErrInvalidAuthToken
 	}
 	token, exists, fetchErr := service.authTokenQuery.GetAuthToken(authToken)
@@ -122,6 +125,7 @@ func (service *AuthService) GetAuthCode(authToken string) (string, error) {
 		return "", fetchErr
 	}
 	if !exists {
+		log.Error().Str("authToken", authToken).Msg("auth token does not exist")
 		return "", ErrInvalidAuthToken
 	}
 	return token.Code, nil
@@ -211,9 +215,11 @@ func (service *AuthService) newAuthCode() (string, error) {
 
 func (service *AuthService) formatMessage(loginLinkUrl string) string {
 	emailMsg := strings.Builder{}
-	emailMsg.WriteString("Your requested login link: <a href=\"") // TODO translation table for other languages
+	emailMsg.WriteString("Your requested login link: <a href=") // TODO translation table for other languages
+	emailMsg.WriteString("\"")
 	emailMsg.WriteString(loginLinkUrl)
-	emailMsg.WriteString("\">LINK</a>")
+	emailMsg.WriteString("\"")
+	emailMsg.WriteString(">LINK</a>")
 	return emailMsg.String()
 }
 
