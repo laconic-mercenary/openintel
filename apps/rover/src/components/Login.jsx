@@ -12,6 +12,10 @@ export default function Login() {
     const loginStepError = "error";
     const waitPeriodMillis = 11000;
     const requestTimeoutMillis = 10000;
+    const httpStatus = {
+        UNAUTHORIZED: 401,
+        NOT_FOUND: 404,
+    };
 
     // State
 
@@ -58,6 +62,28 @@ export default function Login() {
         }
     }
 
+    const submitCode = async () => {
+        const requestAbortController = new AbortController();
+        const abortTimerHandle = setTimeout(() => requestAbortController.abort(), requestTimeoutMillis);
+
+        try {
+            const result = await fetch(
+                "/auth/code-login",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: new URLSearchParams({ email, code }),
+                    signal: requestAbortController.signal,
+                }
+            )
+            return result;
+        } finally {
+            clearTimeout(abortTimerHandle);
+        }
+    }
+
     // Handlers
 
 
@@ -85,9 +111,28 @@ export default function Login() {
         }
     }
 
-    const onSubmitCode = (e) => {
+    const onSubmitCode = async (e) => {
         e.preventDefault();
-        console.log("code submitted")
+        try {
+            const result = await submitCode();
+            if (!result.ok) {
+                if (result.status == httpStatus.UNAUTHORIZED) {
+                    // TODO set error text indicating that the code is wrong
+                } else if (result.status == httpStatus.NOT_FOUND) {
+                    // TODO set error text indicated that the token expired
+                }
+                console.error(result.statusText);
+                return;
+            }
+            const data = await result.json();
+            if (data.redirectUrl) {
+                window.location.replace(data.redirectUrl);
+            } else {
+                console.error("redirectUrl not specified");
+            }
+        } catch (err) {
+            console.error(err);
+        }
     }
 
     // DOM
