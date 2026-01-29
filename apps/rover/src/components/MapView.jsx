@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 
 import "./MapView.css";
 
-import "@maplibre/maplibre-gl-leaflet";
 import {Map} from 'maplibre-gl';
 
 export default function MapView() {
@@ -42,10 +41,7 @@ export default function MapView() {
                 initializeMap();
             }
         }
-
-        return () => {
-            cleanupMap();
-        };
+        return () => cleanupMap();
     }, []);
 
 
@@ -67,7 +63,6 @@ export default function MapView() {
     // DOM
     return (
         <div className="map-rover" ref={roverMapContainerRef}>
-
         </div>
     )
 }

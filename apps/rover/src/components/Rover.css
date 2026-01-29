@@ -1,6 +1,5 @@
 .rover-wrapper {
   min-height: 100vh;
-  padding-top: 3rem;
 }
 
 .rover-menu-header {
@@ -51,12 +50,29 @@
 
 .rover-menu-item {
   flex: 1;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.08);
   background: transparent;
   color: #fff;
   font-size: 1rem;
+  transition: background 250ms ease, color 250ms ease, transform 250ms ease;
 }
 
-.rover-menu-item + .rover-menu-item {
-  border-left: none;
+.rover-menu-item:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: silver;
+}
+
+.rover-menu-item:active {
+  background: darkgreen;
+  border-color: yellow;
+}
+
+.geoloc-toggle {
+    background-color: red;
+    color: black;
+}
+
+.geoloc-toggle.is-enabled {
+    background-color: green;
+    color: white;
 }
