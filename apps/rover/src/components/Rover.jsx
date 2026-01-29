@@ -36,7 +36,7 @@ export default function Rover() {
                     <button className="rover-menu-item">Get Intel</button>
                     <button className="rover-menu-item">Settings</button>
                     <button className={geolocationEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"} 
-                            onClick={() => setGeolocationEnabled(!geolocationEnabled)}>
+                            onClick={() => setGeolocationEnabled((previous) => !previous)}>
                         Geolocation
                     </button>
                 </nav>

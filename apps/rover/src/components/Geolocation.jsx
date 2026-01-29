@@ -22,11 +22,6 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
 
     // Effects
     useEffect(() => {
-        initialize();
-        return () => cleanup();
-    }, []);
-
-    useEffect(() => {
         positionReadyRef.current = onPositionReady;
     }, [onPositionReady]);
 
@@ -36,25 +31,16 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
 
     useEffect(() => {
         if (geolocationEnabled) {
-            startPositionTracking();
+            if ("geolocation" in navigator) {
+                startPositionTracking();
+            } else {
+                onPositionError?.(new Error("geolocation not available in the browser"));
+            }
         } else {
             stopPositionTracking();
         }
-    }), [geolocationEnabled];
-
-    // Methods
-    const initialize = () => {
-        if ("geolocation" in navigator) {
-            startPositionTracking();
-        } else {
-            // TODO show an error to the user
-            onPositionError?.(new Error("geolocation not available in the browser"));
-        }
-    };
-
-    const cleanup = () => {
-        stopPositionTracking();
-    };
+        return () => stopPositionTracking();
+    }, [geolocationEnabled]);
 
     const startPositionTracking = () => {
         stopPositionTracking();
