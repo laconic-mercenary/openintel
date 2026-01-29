@@ -10,10 +10,11 @@ export default function Rover() {
     // State
     const [menuIsOpen, setMenuIsOpen] = useState(false);
     const [geolocationEnabled, setGeolocationEnabled] = useState(true);
+    const [position, setPosition] = useState(null);
 
     // Methods
     const onPositionReady = (position) => {
-        console.log(position);
+        setPosition(position);
     };
 
     const onPositionError = (error) => {
@@ -30,7 +31,7 @@ export default function Rover() {
             <Geolocation onPositionReady={onPositionReady} 
                         onPositionError={onPositionError} 
                         geolocationEnabled={geolocationEnabled} />
-            <MapView />
+            <MapView position={position} />
             <div className={`rover-menu ${menuIsOpen ? "is-expanded" : ""}`}>
                 <nav className="rover-menu-nav">
                     <button className="rover-menu-item">Get Intel</button>
