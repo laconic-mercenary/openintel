@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 import "./Intel.css";
 
-export default function Intel({ onIntelReady, onIntelError }) {
+export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
 
     // Consts
 
@@ -22,6 +22,7 @@ export default function Intel({ onIntelReady, onIntelError }) {
     const streamRef = useRef(null);
     const intelReadyRef = useRef(onIntelReady);
     const intelErrorRef = useRef(onIntelError);
+    const intelCancelRef = useRef(onIntelCancel);
 
     // Effects
     
@@ -32,6 +33,10 @@ export default function Intel({ onIntelReady, onIntelError }) {
     useEffect(() => {
         intelReadyRef.current = onIntelReady;
     }, [onIntelReady]);
+
+    useEffect(() => {
+        intelCancelRef.current = onIntelCancel;
+    }, [onIntelCancel]);
 
     useEffect(() => {
         if (!("mediaDevices" in navigator)) {
@@ -45,25 +50,22 @@ export default function Intel({ onIntelReady, onIntelError }) {
 
         let isMounted = true;
         navigator.mediaDevices.getUserMedia({ video: true })
-                            .then(
-                                (stream) => {
-                                    if (!isMounted) {
-                                        return;
-                                    }
-                                    streamRef.current = stream;
-                                    if (videoRef.current) {
-                                        videoRef.current.srcObject = stream;
-                                    }
+                            .then((stream) => {
+                                if (!isMounted) {
+                                    stream.getTracks().forEach((track) => track.stop());
+                                    return;
                                 }
-                            )
-                            .catch(console.error);
+                                streamRef.current = stream;
+                                if (videoRef.current) {
+                                    videoRef.current.srcObject = stream;
+                                }
+                            })
+                            .catch((error) => {
+                                onIntelError(error);
+                            });
         return () => {
             isMounted = false;
-            if (streamRef.current) {
-                streamRef.current.getTracks()
-                                .forEach((track) => track.stop());
-                streamRef.current = null;
-            }
+            stopCamera();
         };
     }, []);
 
@@ -96,7 +98,7 @@ export default function Intel({ onIntelReady, onIntelError }) {
                 invokeIntelError(new Error("error processing camera image data"));
                 return;
             }
-            if (blob.length > imageBlobMaxLength) {
+            if (blob.size > imageBlobMaxLength) {
                 invokeIntelError(new Error("image size is too large"));
                 return;
             }
@@ -110,6 +112,11 @@ export default function Intel({ onIntelReady, onIntelError }) {
 
     const onSubmitWithoutPhoto = () => {
         notifySubmit(description, null);
+    };
+
+    const onCancel = () => {
+        stopCamera();
+        invokeIntelCancel();
     };
 
     const notifySubmit = (description, b64Image) => {
@@ -132,29 +139,48 @@ export default function Intel({ onIntelReady, onIntelError }) {
 
     const invokeIntelError = (error) => {
         intelErrorRef.current?.(error);
-        throw error;
     };
 
     const invokeIntelReady = (description, b64Image) => {
         intelReadyRef.current?.(description, b64Image);
     };
 
+    const invokeIntelCancel = () => {
+        intelCancelRef.current?.();
+    };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks()
+                            .forEach((track) => track.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+            videoRef.current.load();
+        }
+    };
+
     // DOM
     return (
         // TODO - add a tags entry below the text area
         <div className="modal-background">
-            <div className="modal-card">
+            <div className="intel-wrapper modal-card">
+                <button className="intel-cancel" onClick={onCancel}>X</button>
                 <h2>Get Intel</h2>
                 <video className="intel-camera" ref={videoRef} autoPlay playsInline />
                 <canvas ref={canvasRef} style={{ display: "none" }} />
                 <textarea value={description}
+                            id="intel-description"
+                            name="intel-description"
                             className="intel-description"
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Add your description here (if any)"
+                            placeholder="Add description here (if any)"
                             rows={5} />
-                <button onClick={onSubmitWithPhoto}>Submit With Photo</button>
-                <button onClick={onSubmitWithoutPhoto}>Submit Without Photo</button>
-                <button>Cancel</button>
+                <button className="intel-submit-w-photo" 
+                        onClick={onSubmitWithPhoto}>Submit With Photo</button>
+                <button className="intel-submit-wo-photo" 
+                        onClick={onSubmitWithoutPhoto}>Submit Without Photo</button>
             </div>
         </div>
     );
