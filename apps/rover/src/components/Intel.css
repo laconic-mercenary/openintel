@@ -10,6 +10,7 @@
 }
 
 .modal-card {
+  position: relative;
   width: min(520px, 90vw);
   background: #1b1b1b;
   color: #ffffff;
@@ -23,4 +24,36 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.intel-camera {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.intel-description {
+  width: 100%;
+}
+
+.intel-wrapper button {
+  width: 30%;
+}
+
+button.intel-cancel {
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  width: 2em;
+  height: 2em;
+  background: transparent;
+  color: darkred;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  place-items: center;
+  display: grid;
+  justify-content: center;
 }

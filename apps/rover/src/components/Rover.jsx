@@ -65,7 +65,8 @@ export default function Rover() {
                 </nav>
             </div>
             { intelIsOpen && (<Intel onIntelReady={onIntelReady} 
-                                        onIntelError={onIntelError} />) }
+                                        onIntelError={onIntelError} 
+                                        onIntelCancel={() => setIntelIsOpen(false)}/>) }
         </div>
     )
 }

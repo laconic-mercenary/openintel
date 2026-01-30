@@ -103,6 +103,7 @@ export default function MapView({ position }) {
         if (!position) {
             return;
         }
+
         const features = [];
         const accuracyZonePoints = calculateAccuracyCircle(
                                         position.coords.latitude, 
@@ -137,10 +138,20 @@ export default function MapView({ position }) {
         features.push(currentLocation);
         features.push(accuracyZone);
 
-        roverMapRef.current.getSource("user").setData({
-            type: "FeatureCollection",
-            features,
-        });
+        const map = roverMapRef.current;
+        if (map.isStyleLoaded()) {
+            map.getSource("user")?.setData({
+                type: "FeatureCollection",
+                features,
+            });
+        } else {
+            map.once("load", () => {
+                map.getSource("user")?.setData({
+                    type: "FeatureCollection",
+                    features,
+                });
+            });
+        }
 
         return () => { }
     }, [position]);
