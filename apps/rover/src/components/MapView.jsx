@@ -2,12 +2,16 @@ import { useState, useEffect, useRef } from "react";
 
 import "./MapView.css";
 
-import {Map} from 'maplibre-gl';
+import { Map } from "maplibre-gl";
 
-export default function MapView() {
+import { calculateSimpleCoord } from "../utils/geo";
+
+export default function MapView({ position }) {
 
     // Consts
+    
     const rasterTileSize = 256;
+    const accuracyZonePointsCount = 10;
     const rasterStyle = {
         version: 8,
         sources: {
@@ -33,19 +37,12 @@ export default function MapView() {
             },
             {
                 id: "accuracy",
-                type: "circle",
+                type: "fill",
                 source: "user",
                 filter: ["==", ["get", "kind"], "accuracy"],
                 paint: {
-                    "circle-color": "rgba(0, 150, 255, 0.15)",
-                    "circle-stroke-color": "rgba(0, 150, 255, 0.5)",
-                    "circle-stroke-width": 1,
-                    "circle-radius": [
-                        "interpolate",
-                        ["linear"],
-                        ["zoom"],
-                        5, 2, 10, 10, 15, 30
-                    ],
+                    "fill-color": "rgba(0, 150, 255, 0.15)",
+                    "fill-outline-color": "rgba(0, 150, 255, 0.5)",
                 },
             },
             {
@@ -64,7 +61,7 @@ export default function MapView() {
                 id: "heading",
                 type: "line",
                 source: "user",
-                filter: ["==", ["get", "kind"], "position"],
+                filter: ["==", ["get", "kind"], "heading"],
                 paint: {
                     "line-color": "blue",
                     "line-width": 2,
@@ -80,13 +77,14 @@ export default function MapView() {
 
     
     // State
-    const [position, setPosition] = useState(null);
 
     // References
+
     const roverMapRef = useRef(null);
     const roverMapContainerRef = useRef(null);
 
     // Effects
+
     useEffect(() => {
         if (!roverMapContainerRef.current) {
             return;
@@ -105,7 +103,13 @@ export default function MapView() {
         if (!position) {
             return;
         }
-        const mapFeatures = [];
+        const features = [];
+        const accuracyZonePoints = calculateAccuracyCircle(
+                                        position.coords.latitude, 
+                                        position.coords.longitude, 
+                                        position.coords.accuracy, 
+                                        accuracyZonePointsCount
+                                    );
         const currentLocation = {
             type: "Feature",
             properties: {
@@ -114,8 +118,8 @@ export default function MapView() {
             geometry: {
                 type: "Point",
                 coordinates: [
-                    position.lng,
-                    position.lat,
+                    position.coords.longitude,
+                    position.coords.latitude,
                 ]
             }
         };
@@ -125,27 +129,24 @@ export default function MapView() {
                 kind: "accuracy"
             },
             geometry: {
-                type: "Point",
-                coordinates: [
-                    position.lng,
-                    position.lat,
-                ]
+                type: "Polygon",
+                coordinates: [accuracyZonePoints],
             }
         };
 
-        mapFeatures.push(currentLocation);
-        mapFeatures.push(accuracyZone);
+        features.push(currentLocation);
+        features.push(accuracyZone);
 
         roverMapRef.current.getSource("user").setData({
             type: "FeatureCollection",
-            mapFeatures,
+            features,
         });
 
         return () => { }
     }, [position]);
 
-
     // Methods
+
     const initializeMap = () => {
         roverMapRef.current = new Map({
             container: roverMapContainerRef.current,
@@ -160,9 +161,25 @@ export default function MapView() {
         roverMapRef.current = null;
     };
 
+    const calculateAccuracyCircle = (lat, lon, radiusMeters, pointsCount) => {
+        if (pointsCount <= 0) {
+            console.error("pointsCount is 0 - this would result in div by zero");
+            return [];
+        }
+        const circularDegrees = 360.0;
+        const bearingStep = circularDegrees / pointsCount;
+        const bearings = Array.from({length: pointsCount + 1}, (_, index) => index * bearingStep);
+        const radiusInKM = radiusMeters / 1000.0;
+        const circleCoords = [];
+        for (const bearing of bearings) {
+            const coord = calculateSimpleCoord(lat, lon, radiusInKM, bearing);
+            circleCoords.push(coord);
+        }
+        return circleCoords;
+    };
+
     // DOM
     return (
-        <div className="map-rover" ref={roverMapContainerRef}>
-        </div>
+        <div className="map-rover" ref={roverMapContainerRef}></div>
     )
 }

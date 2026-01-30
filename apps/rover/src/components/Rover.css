@@ -38,7 +38,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.rover-menu.is-expanded {
+.rover-menu.is-open {
   height: 4rem;
 }
 

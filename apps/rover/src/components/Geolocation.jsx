@@ -3,11 +3,10 @@ import { useState, useEffect, useRef } from "react";
 
 import "./Geolocation.css"
 
-export default function Geolocation({ onPositionReady, onPositionError, geolocationEnabled }) {
-
-    // State
+export default function Geolocation({ onPositionReady, onPositionError, geolocationIsEnabled }) {
 
     // Consts
+
     const geolocationPositionTimeout = 5000;
     const geolocationOptions = {
         enableHighAccuracy: true,
@@ -15,12 +14,16 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
         timeout: geolocationPositionTimeout
     };
 
+    // State
+
     // References
+
     const geolocationHandle = useRef(null);
     const positionReadyRef = useRef(onPositionReady);
     const positionErrorRef = useRef(onPositionError);
 
     // Effects
+
     useEffect(() => {
         positionReadyRef.current = onPositionReady;
     }, [onPositionReady]);
@@ -30,17 +33,19 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
     }, [onPositionError]);
 
     useEffect(() => {
-        if (geolocationEnabled) {
+        if (geolocationIsEnabled) {
             if ("geolocation" in navigator) {
                 startPositionTracking();
             } else {
-                onPositionError?.(new Error("geolocation not available in the browser"));
+                positionErrorRef.current?.(new Error("geolocation not available in the browser"));
             }
         } else {
             stopPositionTracking();
         }
         return () => stopPositionTracking();
-    }, [geolocationEnabled]);
+    }, [geolocationIsEnabled]);
+
+    // Methods
 
     const startPositionTracking = () => {
         stopPositionTracking();
@@ -59,7 +64,6 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
     };
 
     // DOM
-    return (
-        <span id="geolocation-controls" className="do-not-remove-me" />
-    )
+
+    return null
 }
