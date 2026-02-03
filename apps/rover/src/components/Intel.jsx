@@ -61,7 +61,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                                 }
                             })
                             .catch((error) => {
-                                onIntelError(error);
+                                invokeIntelError(error);
                             });
         return () => {
             isMounted = false;
