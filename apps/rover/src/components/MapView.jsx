@@ -2,16 +2,16 @@ import { useState, useEffect, useRef } from "react";
 
 import "./MapView.css";
 
-import { Map } from "maplibre-gl";
+import { Map as MLMap, Marker } from "maplibre-gl";
 
 import { calculateSimpleCoord } from "../utils/geo";
 
-export default function MapView({ position }) {
+export default function MapView({ position, intelPoints, onKeepIntel, onDiscardIntel, geolocationIsEnabled }) {
 
     // Consts
     
     const rasterTileSize = 256;
-    const accuracyZonePointsCount = 10;
+    const accuracyZonePointsCount = 20;
     const rasterStyle = {
         version: 8,
         sources: {
@@ -75,13 +75,15 @@ export default function MapView({ position }) {
         zoom: 14 //TODO - determine algorithmically
     };
 
-    
     // State
 
     // References
 
     const roverMapRef = useRef(null);
     const roverMapContainerRef = useRef(null);
+    const roverMarkersRef = useRef(new Map());
+    const keepIntelRef = useRef(onKeepIntel);
+    const discardIntelRef = useRef(onDiscardIntel);
 
     // Effects
 
@@ -97,69 +99,43 @@ export default function MapView({ position }) {
     }, []);
 
     useEffect(() => {
-        if (!roverMapRef.current) {
-            return;
+        keepIntelRef.current = onKeepIntel;
+    }, [onKeepIntel]);
+
+    useEffect(() => {
+        discardIntelRef.current = onDiscardIntel;
+    }, [onDiscardIntel]);
+
+    useEffect(() => {
+        if (!geolocationIsEnabled) {
+            clearAllFeatures();
         }
+    }, [geolocationIsEnabled]);
+
+    useEffect(() => {
         if (!position) {
+            console.warn("position is not ready");
             return;
         }
-
-        const features = [];
-        const accuracyZonePoints = calculateAccuracyCircle(
-                                        position.coords.latitude, 
-                                        position.coords.longitude, 
-                                        position.coords.accuracy, 
-                                        accuracyZonePointsCount
-                                    );
-        const currentLocation = {
-            type: "Feature",
-            properties: {
-                kind: "position"
-            },
-            geometry: {
-                type: "Point",
-                coordinates: [
-                    position.coords.longitude,
-                    position.coords.latitude,
-                ]
-            }
-        };
-        const accuracyZone = {
-            type: "Feature",
-            properties: {
-                kind: "accuracy"
-            },
-            geometry: {
-                type: "Polygon",
-                coordinates: [accuracyZonePoints],
-            }
-        };
-
-        features.push(currentLocation);
-        features.push(accuracyZone);
-
-        const map = roverMapRef.current;
-        if (map.isStyleLoaded()) {
-            map.getSource("user")?.setData({
-                type: "FeatureCollection",
-                features,
-            });
-        } else {
-            map.once("load", () => {
-                map.getSource("user")?.setData({
-                    type: "FeatureCollection",
-                    features,
-                });
-            });
-        }
-
-        return () => { }
+        renderCurrentPosition(position.coords);
+        return () => null;
     }, [position]);
+
+    useEffect(() => {
+        if (!intelPoints) {
+            console.warn("no intel points to put on map");
+            return;
+        }
+        renderIntelPoints(intelPoints);
+        sendMapToLatest(intelPoints);
+        console.debug(intelPoints);
+        return () => null;
+    }, [intelPoints]);
 
     // Methods
 
     const initializeMap = () => {
-        roverMapRef.current = new Map({
+        roverMapRef.current = new MLMap({
             container: roverMapContainerRef.current,
             style: rasterStyle,
             center: [0, 0],
@@ -187,6 +163,182 @@ export default function MapView({ position }) {
             circleCoords.push(coord);
         }
         return circleCoords;
+    };
+
+    const clearAllFeatures = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            console.warn("map is not ready yet");
+            return;
+        }
+        const features = [];
+        if (map.isStyleLoaded()) {
+            map.getSource("user")?.setData({
+                type: "FeatureCollection",
+                features,
+            });
+        } else {
+            map.once("load", () => {
+                map.getSource("user")?.setData({
+                    type: "FeatureCollection",
+                    features,
+                });
+            });
+        }
+    }
+
+    const renderCurrentPosition = (coords) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            console.warn("map is not ready yet");
+            return;
+        }
+        if (!position.coords) {
+            console.warn("coordinates are not available");
+            return;
+        }
+
+        const features = [];
+        const accuracyZonePoints = calculateAccuracyCircle(
+                                        coords.latitude, 
+                                        coords.longitude, 
+                                        coords.accuracy, 
+                                        accuracyZonePointsCount
+                                    );
+        const currentLocation = {
+            type: "Feature",
+            properties: {
+                kind: "position"
+            },
+            geometry: {
+                type: "Point",
+                coordinates: [
+                    coords.longitude,
+                    coords.latitude,
+                ]
+            }
+        };
+        const accuracyZone = {
+            type: "Feature",
+            properties: {
+                kind: "accuracy"
+            },
+            geometry: {
+                type: "Polygon",
+                coordinates: [accuracyZonePoints],
+            }
+        };
+
+        features.push(currentLocation);
+        features.push(accuracyZone);
+
+        if (map.isStyleLoaded()) {
+            map.getSource("user")?.setData({
+                type: "FeatureCollection",
+                features,
+            });
+        } else {
+            map.once("load", () => {
+                map.getSource("user")?.setData({
+                    type: "FeatureCollection",
+                    features,
+                });
+            });
+        }
+    };
+
+    const sendMapToLatest = (intelPoints) => {
+        if (intelPoints.length === 0) {
+            console.warn("no points - will not navigate the map");
+            return;
+        }
+        const lastPoint = intelPoints.at(-1);
+        sendMapToPosition({ 
+            longitude: lastPoint.longitude, 
+            latitude: lastPoint.latitude 
+        });
+    }
+
+    const sendMapToPosition = (coords) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            console.warn("map is not ready");
+            return;
+        }
+        map.flyTo({
+            center: [
+                coords.longitude,
+                coords.latitude
+            ],
+            zoom: 14 // TODO algo determine this
+        });
+    }
+
+    const renderIntelPoints = (points) => {
+        if (!roverMapRef.current) {
+            console.warn("map is not ready");
+            return;
+        }
+
+        const map = roverMapRef.current;
+        const mapMarkers = roverMarkersRef.current;
+
+        points.forEach((point) => {
+            const existingPoint = mapMarkers.get(point.key);
+            if (!existingPoint) {
+                mapMarkers.set(
+                    point.key,
+                    newMapElement(point).addTo(map),
+                );
+                console.info(`added new point ${point.key} to map`);
+            }
+        });
+
+        for (const [key, marker] of mapMarkers) {
+            const stillExists = points.some(
+                (point) => point.key === key
+            )
+            if (!stillExists) {
+                marker.remove();
+                mapMarkers.delete(key);
+                console.info(`removed old point ${key} to map`);
+            }
+        }
+    };
+
+    const newMapElement = (intelPoint) => {
+        const mapElement = document.createElement("div");
+        mapElement.className = "intel-marker";
+        mapElement.innerHTML = `
+        <div class="intel-tab">
+            <img class="intel-thumb" src="https://placehold.co/80x80" />
+        </div>
+        <div class="intel-actions">
+            <button class="intel-btn left">Keep</button>
+            <button class="intel-btn right">Delete</button>
+        </div>
+        `;
+        mapElement.addEventListener("click", (e) => {
+            const action = e.target?.dataset?.action;
+            if (action === "keep") {
+                invokeKeepIntel(intelPoint);
+            } else if (action === "discard") {
+                invokeDiscardIntel(intelPoint);
+            }
+        });
+        const longitude = intelPoint.longitude;
+        const latitude = intelPoint.latitude;
+        return new Marker({ element: mapElement }).setLngLat([longitude, latitude]);
+    };
+
+    // Evemts
+
+    const invokeKeepIntel = (intelPoint) => {
+        keepIntelRef.current?.(intelPoint);
+    };
+
+    const invokeDiscardIntel = (intelPoint) => {
+        discardIntelRef.current?.(intelPoint);
     };
 
     // DOM
