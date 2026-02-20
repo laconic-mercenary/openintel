@@ -32,14 +32,35 @@
   height: auto;
   display: block;
   object-fit: cover;
+  margin-bottom: 14px;
 }
 
 .intel-description {
   width: 100%;
+  margin-bottom: 12px;
 }
 
-.intel-wrapper button {
-  width: 30%;
+.intel-submit-w-photo,
+.intel-submit-wo-photo {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  border: 1px solid #c0c0c0;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #f2f2f2;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.intel-submit-wo-photo {
+  margin-top: 10px;
+}
+
+.intel-submit-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 button.intel-cancel {
@@ -56,4 +77,14 @@ button.intel-cancel {
   place-items: center;
   display: grid;
   justify-content: center;
+}
+
+.intel-error {
+  color: #b00020;
+  background: #ffe8eb;
+  border: 1px solid #f5b5be;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 8px 0 12px 0;
+  font-size: 0.9rem;
 }

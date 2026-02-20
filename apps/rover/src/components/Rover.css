@@ -50,11 +50,26 @@
 
 .rover-menu-item {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px solid rgba(255, 255, 255, 0.08);
   background: transparent;
   color: #fff;
   font-size: 1rem;
   transition: background 250ms ease, color 250ms ease, transform 250ms ease;
+}
+
+.rover-menu-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.rover-menu-item-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .rover-menu-item:hover {
