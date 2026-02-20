@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { Camera, CameraOff } from "lucide-react";
+import cameraPoster from "../assets/camera-unavailable.svg";
 
 import "./Intel.css";
 
@@ -11,9 +13,11 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     const descriptionMaxLength = 300;
     const imageBlobMaxLength = 5242880;
 
+
     // State
 
     const [description, setDescription] = useState("");
+    const [userError, setUserError] = useState("");
 
     // References
 
@@ -40,11 +44,13 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
 
     useEffect(() => {
         if (!("mediaDevices" in navigator)) {
-            invokeIntelError(new Error("media api not supported on this browser"));
+            invokeIntelError(new Error("media api not supported on this browser"),
+                                        "This browser is not supported.");
             return;
         }
         if (!("getUserMedia" in navigator.mediaDevices)) {
-            invokeIntelError(new Error("camera is not supported on this browser"));
+            invokeIntelError(new Error("camera is not supported on this browser"),
+                                        "Cameras are not supported in this browser.");
             return;
         }
 
@@ -61,7 +67,8 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                                 }
                             })
                             .catch((error) => {
-                                invokeIntelError(error);
+                                console.error(`camera is not available: ${error}`);
+                                invokeIntelError(error, "No camera detected - please check your camera device.");
                             });
         return () => {
             isMounted = false;
@@ -74,17 +81,17 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     const onSubmitWithPhoto = () => {
         const video = videoRef.current;
         if (!video) {
-            invokeIntelError(new Error("video is not ready"));
+            invokeIntelError(new Error("video is not ready"), "Camera is not ready yet - please wait.");
             return;
         }
         const canvas = canvasRef.current;
         if (!canvas) {
-            invokeIntelError(new Error("image canvas is not ready"));
+            invokeIntelError(new Error("image canvas is not ready"), "Camera is not ready yet - please wait.");
             return;
         }
 
         if (video.videoHeight == 0 || video.videoWidth == 0) {
-            invokeIntelError(new Error("video is not ready (dimensions)"));
+            invokeIntelError(new Error("video is not ready (dimensions)"), "Unable to take video from camera - please check your camera or browser permissions.");
             return;
         }
 
@@ -99,7 +106,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                 return;
             }
             if (blob.size > imageBlobMaxLength) {
-                invokeIntelError(new Error("image size is too large"));
+                invokeIntelError(new Error("image size is too large"), "Video size is too large - please lower the quality or size of the video resolution.");
                 return;
             }
             const reader = new FileReader();
@@ -130,14 +137,20 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
         }
         if (!b64Image) {
             if (trimmedDescription.length == 0) {
-                invokeIntelError(new Error("at least one of a description or image (or both) is required to submit"));
+                invokeIntelError(
+                    new Error("at least one of a description or image (or both) is required to submit"),
+                    "Add a description when submitting without a photo.",
+                );
                 return;
             }
         }
-        invokeIntelReady(description, b64Image);
+        invokeIntelReady(trimmedDescription, b64Image);
     };
 
-    const invokeIntelError = (error) => {
+    const invokeIntelError = (error, userMessage) => {
+        if (userMessage) {
+            setUserError(userMessage);
+        }
         intelErrorRef.current?.(error);
     };
 
@@ -166,10 +179,19 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
         // TODO - add a tags entry below the text area
         <div className="modal-background">
             <div className="intel-wrapper modal-card">
-                <button className="intel-cancel" onClick={onCancel}>X</button>
+                <button className="intel-cancel" 
+                        onClick={onCancel}>X</button>
                 <h2>Get Intel</h2>
-                <video className="intel-camera" ref={videoRef} autoPlay playsInline />
-                <canvas ref={canvasRef} style={{ display: "none" }} />
+                { userError && (
+                    <div className="intel-error">{userError}</div>
+                ) }
+                <video className="intel-camera" 
+                        ref={videoRef} 
+                        autoPlay 
+                        playsInline 
+                        poster={cameraPoster} />
+                <canvas ref={canvasRef} 
+                        style={{ display: "none" }} />
                 <textarea value={description}
                             id="intel-description"
                             name="intel-description"
@@ -178,11 +200,20 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                             placeholder="Add description here (if any)"
                             rows={5} />
                 <button className="intel-submit-w-photo" 
-                        onClick={onSubmitWithPhoto}>Submit With Photo</button>
+                        onClick={onSubmitWithPhoto}>
+                    <span className="intel-submit-label">
+                        <Camera size={16} aria-hidden="true" />
+                        Submit With Photo
+                    </span>
+                </button>
                 <button className="intel-submit-wo-photo" 
-                        onClick={onSubmitWithoutPhoto}>Submit Without Photo</button>
+                        onClick={onSubmitWithoutPhoto}>
+                    <span className="intel-submit-label">
+                        <CameraOff size={16} aria-hidden="true" />
+                        Submit Without Photo
+                    </span>
+                </button>
             </div>
         </div>
     );
 }
-

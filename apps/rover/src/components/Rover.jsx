@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Crosshair, Locate, LocateFixed, LocateOff } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
@@ -11,6 +12,13 @@ export default function Rover() {
 
     // Consts
 
+    const geolocationPositionTimeout = 5000;
+    const geolocationOptions = {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: geolocationPositionTimeout,
+    };
+
     // State
 
     const [menuIsOpen, setMenuIsOpen] = useState(false);
@@ -18,10 +26,17 @@ export default function Rover() {
     const [geolocationIsEnabled, setGeolocationIsEnabled] = useState(true);
     const [position, setPosition] = useState(null);
     const [intelPoints, setIntelPoints] = useState([]);
+    const [zoomToPositionSignal, setZoomToPositionSignal] = useState(0);
 
     // References
 
+    const positionRef = useRef(position);
+
     // Effects
+
+    useEffect(() => {
+        positionRef.current = position;
+    }, [position]);
 
     // Methods
 
@@ -38,9 +53,16 @@ export default function Rover() {
         }
     };
 
+    const addIntelPoint = (description, b64Image, coords) => {
+        const intelCandidate = newIntelCandidate(description, b64Image, coords);
+        setIntelPoints((previous) => [...previous, intelCandidate]);
+        setIntelIsOpen(false);
+    };
+
     // Events
 
     const onPositionReady = (position) => {
+        positionRef.current = position;
         setPosition(position);
     };
 
@@ -54,13 +76,28 @@ export default function Rover() {
             console.warn("geolocation is disabled - will not store intel");
             return;
         }
-        if (!position) {
-            console.warn("geolocation (position) is not set");
+        const latestPosition = positionRef.current;
+        if (latestPosition) {
+            addIntelPoint(description, b64Image, latestPosition.coords);
             return;
         }
-        const intelCandidate = newIntelCandidate(description, b64Image, position.coords);
-        setIntelPoints((previous) => [...previous, intelCandidate]);
-        setIntelIsOpen(false);
+
+        if (!("geolocation" in navigator)) {
+            console.warn("geolocation api not available in browser");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (currentPosition) => {
+                positionRef.current = currentPosition;
+                setPosition(currentPosition);
+                addIntelPoint(description, b64Image, currentPosition.coords);
+            },
+            (error) => {
+                console.error(error);
+            },
+            geolocationOptions,
+        );
     };
 
     const onIntelError = (error) => {
@@ -85,6 +122,10 @@ export default function Rover() {
         });
     };
 
+    const onZoomToMe = () => {
+        setZoomToPositionSignal((previous) => previous + 1);
+    };
+
     // DOM
     
     return (
@@ -100,15 +141,34 @@ export default function Rover() {
                     intelPoints={intelPoints} 
                     onKeepIntel={onKeepIntel}
                     onDiscardIntel={onDiscardIntel}
+                    zoomToPositionSignal={zoomToPositionSignal}
                     geolocationIsEnabled={geolocationIsEnabled} />
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
                     <button className="rover-menu-item"
-                            onClick={() => setIntelIsOpen((previous) => !previous)}>Get Intel</button>
-                    <button className="rover-menu-item">Settings</button>
+                            onClick={() => setIntelIsOpen((previous) => !previous)}>
+                        <span className="rover-menu-item-label">
+                            <Crosshair className="rover-menu-item-icon" aria-hidden="true" />
+                            Get Intel
+                        </span>
+                    </button>
+                    <button className="rover-menu-item"
+                            onClick={onZoomToMe}>
+                        <span className="rover-menu-item-label">
+                            <LocateFixed className="rover-menu-item-icon" aria-hidden="true" />
+                            Zoom To Me
+                        </span>
+                    </button>
                     <button className={geolocationIsEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"} 
                             onClick={() => setGeolocationIsEnabled((previous) => !previous)}>
-                        Geolocation
+                        <span className="rover-menu-item-label">
+                            {geolocationIsEnabled ? (
+                                <Locate className="rover-menu-item-icon" aria-hidden="true" />
+                            ) : (
+                                <LocateOff className="rover-menu-item-icon" aria-hidden="true" />
+                            )}
+                            Geolocation
+                        </span>
                     </button>
                 </nav>
             </div>

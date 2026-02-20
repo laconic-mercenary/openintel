@@ -1,17 +1,42 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import "./MapView.css";
 
-import { Map as MLMap, Marker } from "maplibre-gl";
+import { Map as MLMap, Popup as MLPopup } from "maplibre-gl";
+
+import markerConfirmedUrl from "../assets/markers/intel-confirmed.svg";
+import markerNewUrl from "../assets/markers/intel-new.svg";
+import markerCommunityUrl from "../assets/markers/intel-community.svg";
 
 import { calculateSimpleCoord } from "../utils/geo";
 
-export default function MapView({ position, intelPoints, onKeepIntel, onDiscardIntel, geolocationIsEnabled }) {
-
+export default function MapView({ position, intelPoints, geolocationIsEnabled, onKeepIntel, onDiscardIntel, zoomToPositionSignal }) {
+    
     // Consts
     
     const rasterTileSize = 256;
     const accuracyZonePointsCount = 20;
+    const userSourceID = "user";
+    const intelSourceID = "intel";
+    const markerLayerID = "intel-markers";
+    const markerHoverCursor = "pointer";
+    const intelActionsPopupOffset = 10;
+    const intelPopupTypes = {
+        newActions: "new-actions",
+        confirmedActions: "confirmed-actions",
+        confirmedDeleteConfirm: "confirmed-delete-confirm",
+    };
+    const markerImageIDs = {
+        confirmed: "marker-confirmed",
+        new: "marker-new",
+        community: "marker-community",
+    };
+    const markerImageURLs = {
+        [markerImageIDs.confirmed]: markerConfirmedUrl,
+        [markerImageIDs.new]: markerNewUrl,
+        [markerImageIDs.community]: markerCommunityUrl,
+    };
+
     const rasterStyle = {
         version: 8,
         sources: {
@@ -21,7 +46,14 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
                 tileSize: rasterTileSize,
                 attribution: "(c) OpenStreetMap Contributors",
             },
-            user: {
+            [userSourceID]: {
+                type: "geojson",
+                data: {
+                    type: "FeatureCollection",
+                    features: [],
+                },
+            },
+            [intelSourceID]: {
                 type: "geojson",
                 data: {
                     type: "FeatureCollection",
@@ -30,15 +62,15 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
             },
         },
         layers: [
-            { 
-                id: "osm-tiles", 
-                type: "raster", 
-                source: "osm" 
+            {
+                id: "osm-tiles",
+                type: "raster",
+                source: "osm",
             },
             {
                 id: "accuracy",
                 type: "fill",
-                source: "user",
+                source: userSourceID,
                 filter: ["==", ["get", "kind"], "accuracy"],
                 paint: {
                     "fill-color": "rgba(0, 150, 255, 0.15)",
@@ -48,7 +80,7 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
             {
                 id: "position",
                 type: "circle",
-                source: "user",
+                source: userSourceID,
                 filter: ["==", ["get", "kind"], "position"],
                 paint: {
                     "circle-radius": 6,
@@ -58,32 +90,47 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
                 },
             },
             {
-                id: "heading",
-                type: "line",
-                source: "user",
-                filter: ["==", ["get", "kind"], "heading"],
-                paint: {
-                    "line-color": "blue",
-                    "line-width": 2,
+                id: markerLayerID,
+                type: "symbol",
+                source: intelSourceID,
+                layout: {
+                    "icon-image": [
+                        "match",
+                        ["get", "intelType"],
+                        "confirmed",
+                        markerImageIDs.confirmed,
+                        "community",
+                        markerImageIDs.community,
+                        markerImageIDs.new,
+                    ],
+                    "icon-size": [
+                        "interpolate",
+                        ["linear"],
+                        ["zoom"],
+                        10,
+                        0.7,
+                        16,
+                        1.05,
+                    ],
+                    "icon-anchor": "bottom",
+                    "icon-allow-overlap": false,
+                    "icon-ignore-placement": false,
                 },
             },
         ],
-        center: [
-            0,
-            0,
-        ],
-        zoom: 14 //TODO - determine algorithmically
     };
 
-    // State
-
-    // References
+    // Refs
 
     const roverMapRef = useRef(null);
     const roverMapContainerRef = useRef(null);
-    const roverMarkersRef = useRef(new Map());
+    const intelPointsRef = useRef(intelPoints);
     const keepIntelRef = useRef(onKeepIntel);
     const discardIntelRef = useRef(onDiscardIntel);
+    const activeIntelActionsPopupRef = useRef(null);
+    const activeIntelActionPointKeyRef = useRef(null);
+    const activeIntelActionPopupTypeRef = useRef(null);
+    const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
 
     // Effects
 
@@ -97,6 +144,41 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
         initializeMap();
         return () => cleanupMap();
     }, []);
+
+    useEffect(() => {
+        intelPointsRef.current = intelPoints;
+        const activeIntelActionPointKey = activeIntelActionPointKeyRef.current;
+        if (!activeIntelActionPointKey) {
+            return;
+        }
+        const activeIntelPoint = intelPoints.find((point) => point.key === activeIntelActionPointKey);
+        if (!activeIntelPoint) {
+            removeIntelActionsPopup();
+            return;
+        }
+        const activePopupType = activeIntelActionPopupTypeRef.current;
+        if (activePopupType === intelPopupTypes.newActions && (activeIntelPoint.confirmed || activeIntelPoint.community)) {
+            removeIntelActionsPopup();
+            return;
+        }
+        if (activePopupType === intelPopupTypes.confirmedActions && !activeIntelPoint.confirmed) {
+            removeIntelActionsPopup();
+            return;
+        }
+        if (activePopupType === intelPopupTypes.confirmedDeleteConfirm && !activeIntelPoint.confirmed) {
+            removeIntelActionsPopup();
+        }
+    }, [intelPoints]);
+
+    useEffect(() => {
+        if (!reviewIntelPointKey) {
+            return;
+        }
+        const reviewIntelPoint = intelPoints.find((point) => point.key === reviewIntelPointKey);
+        if (!reviewIntelPoint || !reviewIntelPoint.confirmed) {
+            setReviewIntelPointKey(null);
+        }
+    }, [intelPoints, reviewIntelPointKey]);
 
     useEffect(() => {
         keepIntelRef.current = onKeepIntel;
@@ -118,8 +200,18 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
             return;
         }
         renderCurrentPosition(position.coords);
-        return () => null;
     }, [position]);
+
+    useEffect(() => {
+        if (zoomToPositionSignal === 0) {
+            return;
+        }
+        if (!position) {
+            console.warn("position is not ready");
+            return;
+        }
+        sendMapToPosition(position.coords);
+    }, [zoomToPositionSignal]);
 
     useEffect(() => {
         if (!intelPoints) {
@@ -128,24 +220,404 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
         }
         renderIntelPoints(intelPoints);
         sendMapToLatest(intelPoints);
-        console.debug(intelPoints);
-        return () => null;
     }, [intelPoints]);
 
     // Methods
 
     const initializeMap = () => {
-        roverMapRef.current = new MLMap({
+        const map = new MLMap({
             container: roverMapContainerRef.current,
             style: rasterStyle,
             center: [0, 0],
-            zoom: 2
+            zoom: 2,
         });
+
+        map.on("load", () => {
+            loadMarkerImages();
+            applyMarkerHoverCursor();
+            applyMarkerClickEvent();
+        });
+
+        roverMapRef.current = map;
     };
 
     const cleanupMap = () => {
+        removeIntelActionsPopup();
+        removeMarkerClickEvent();
+        removeMarkerHoverCursor();
         roverMapRef.current?.remove();
         roverMapRef.current = null;
+    };
+
+    const loadMarkerImages = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        Object.entries(markerImageURLs).forEach(([imageID, imageURL]) => {
+            if (map.hasImage(imageID)) {
+                return;
+            }
+            loadMarkerImageData(imageURL)
+                .then((imageData) => {
+                    if (!map.hasImage(imageID)) {
+                        map.addImage(imageID, imageData, { pixelRatio: 2 });
+                    }
+                })
+                .catch((error) => {
+                    console.error(error ?? new Error("could not load marker image"));
+                });
+        });
+    };
+
+    const applyMarkerHoverCursor = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.on("mouseenter", markerLayerID, onMarkerMouseEnter);
+        map.on("mouseleave", markerLayerID, onMarkerMouseLeave);
+    };
+
+    const removeMarkerHoverCursor = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.off("mouseenter", markerLayerID, onMarkerMouseEnter);
+        map.off("mouseleave", markerLayerID, onMarkerMouseLeave);
+        map.getCanvas().style.cursor = "";
+    };
+
+    const onMarkerMouseEnter = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.getCanvas().style.cursor = markerHoverCursor;
+    };
+
+    const onMarkerMouseLeave = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.getCanvas().style.cursor = "";
+    };
+
+    const applyMarkerClickEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.on("click", markerLayerID, onMarkerClick);
+    };
+
+    const removeMarkerClickEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.off("click", markerLayerID, onMarkerClick);
+    };
+
+    const onMarkerClick = (event) => {
+        const markerFeature = event.features?.[0];
+        if (!markerFeature) {
+            return;
+        }
+        const key = markerFeature.properties?.key;
+        const intelType = markerFeature.properties?.intelType;
+        const clickedIntel = intelPointsRef.current?.find((point) => point.key === key);
+
+        if (!key || !intelType || !clickedIntel) {
+            console.warn("clicked marker is missing required intel metadata");
+            return;
+        }
+
+        if (intelType === "new") {
+            onNewIntelClick(clickedIntel, event.lngLat);
+            return;
+        }
+        removeIntelActionsPopup(); // non-new, close any popups first
+        if (intelType === "confirmed") {
+            onConfirmedIntelClick(clickedIntel, event.lngLat);
+            return;
+        }
+        if (intelType === "community") {
+            onCommunityIntelClick(clickedIntel);
+            return;
+        }
+
+        console.warn(`unknown intel type clicked: ${intelType}`);
+    };
+
+    const onNewIntelClick = (intelPoint, lngLat) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        removeIntelActionsPopup();
+
+        const popupContent = createKeepDiscardPopup(
+            () => {
+                // TODO send this new intel to the backend for 
+                // validation and persistence
+                keepIntelRef.current?.(intelPoint);
+                removeIntelActionsPopup();
+            },
+            () => {
+                // no need for backend calls because new intel 
+                // is not persisted
+                discardIntelRef.current?.(intelPoint);
+                removeIntelActionsPopup();
+            },
+        );
+
+        const keepDiscardConfirm = new MLPopup({
+            className: "intel-point-actions-popup",
+            closeButton: false,
+            closeOnClick: false,
+            closeOnMove: true,
+            anchor: "top",
+            offset: intelActionsPopupOffset,
+        })
+            .setLngLat(lngLat)
+            .setDOMContent(popupContent)
+            .addTo(map);
+
+        keepDiscardConfirm.on("close", () => {
+            if (activeIntelActionsPopupRef.current === keepDiscardConfirm) {
+                activeIntelActionsPopupRef.current = null;
+                activeIntelActionPointKeyRef.current = null;
+                activeIntelActionPopupTypeRef.current = null;
+            }
+        });
+
+        activeIntelActionsPopupRef.current = keepDiscardConfirm;
+        activeIntelActionPointKeyRef.current = intelPoint.key;
+        activeIntelActionPopupTypeRef.current = intelPopupTypes.newActions;
+    };
+
+    const onConfirmedIntelClick = (intelPoint, lngLat) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        removeIntelActionsPopup();
+
+        const popupContent = createReviewDeletePopup(
+            () => {
+                setReviewIntelPointKey(intelPoint.key);
+                removeIntelActionsPopup();
+            },
+            () => {
+                showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
+            },
+        );
+
+        const reviewDeletePopup = new MLPopup({
+            className: "intel-point-actions-popup",
+            closeButton: false,
+            closeOnClick: false,
+            closeOnMove: true,
+            anchor: "top",
+            offset: intelActionsPopupOffset,
+        })
+            .setLngLat(lngLat)
+            .setDOMContent(popupContent)
+            .addTo(map);
+
+        reviewDeletePopup.on("close", () => {
+            if (activeIntelActionsPopupRef.current === reviewDeletePopup) {
+                activeIntelActionsPopupRef.current = null;
+                activeIntelActionPointKeyRef.current = null;
+                activeIntelActionPopupTypeRef.current = null;
+            }
+        });
+
+        activeIntelActionsPopupRef.current = reviewDeletePopup;
+        activeIntelActionPointKeyRef.current = intelPoint.key;
+        activeIntelActionPopupTypeRef.current = intelPopupTypes.confirmedActions;
+    };
+
+    const showConfirmedDeleteConfirmPopup = (intelPoint, lngLat) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        removeIntelActionsPopup();
+
+        const popupContent = createConfirmedDeleteConfirmPopup(
+            () => {
+                // TODO send confirmed intel delete to backend API.
+                discardIntelRef.current?.(intelPoint);
+                removeIntelActionsPopup();
+            },
+            () => {
+                removeIntelActionsPopup();
+            },
+        );
+
+        const deleteConfirmPopup = new MLPopup({
+            className: "intel-point-actions-popup",
+            closeButton: false,
+            closeOnClick: false,
+            closeOnMove: true,
+            anchor: "top",
+            offset: intelActionsPopupOffset,
+        })
+            .setLngLat(lngLat)
+            .setDOMContent(popupContent)
+            .addTo(map);
+
+        deleteConfirmPopup.on("close", () => {
+            if (activeIntelActionsPopupRef.current === deleteConfirmPopup) {
+                activeIntelActionsPopupRef.current = null;
+                activeIntelActionPointKeyRef.current = null;
+                activeIntelActionPopupTypeRef.current = null;
+            }
+        });
+
+        activeIntelActionsPopupRef.current = deleteConfirmPopup;
+        activeIntelActionPointKeyRef.current = intelPoint.key;
+        activeIntelActionPopupTypeRef.current = intelPopupTypes.confirmedDeleteConfirm;
+    };
+
+    const onCommunityIntelClick = (intelPoint) => {
+
+    };
+
+    const removeIntelActionsPopup = () => {
+        activeIntelActionsPopupRef.current?.remove();
+        activeIntelActionsPopupRef.current = null;
+        activeIntelActionPointKeyRef.current = null;
+        activeIntelActionPopupTypeRef.current = null;
+    };
+
+    const createKeepDiscardPopup = (onKeepClick, onDiscardClick) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "intel-point-actions";
+
+        const keepButton = document.createElement("button");
+        keepButton.type = "button";
+        keepButton.className = "intel-point-action keep";
+        keepButton.textContent = "Keep";
+        keepButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onKeepClick();
+        });
+
+        const discardButton = document.createElement("button");
+        discardButton.type = "button";
+        discardButton.className = "intel-point-action discard";
+        discardButton.textContent = "Discard";
+        discardButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onDiscardClick();
+        });
+
+        wrapper.append(keepButton, discardButton);
+        return wrapper;
+    };
+
+    const createReviewDeletePopup = (onReviewClick, onDeleteClick) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "intel-point-actions";
+
+        const reviewButton = document.createElement("button");
+        reviewButton.type = "button";
+        reviewButton.className = "intel-point-action review";
+        reviewButton.textContent = "Review";
+        reviewButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onReviewClick();
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "intel-point-action delete";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onDeleteClick();
+        });
+
+        wrapper.append(reviewButton, deleteButton);
+        return wrapper;
+    };
+
+    const createConfirmedDeleteConfirmPopup = (onConfirmDelete, onCancelDelete) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "intel-point-delete-confirm";
+
+        const message = document.createElement("p");
+        message.className = "intel-point-delete-confirm-message";
+        message.textContent = "Delete this intel?";
+
+        const actions = document.createElement("div");
+        actions.className = "intel-point-delete-confirm-actions";
+
+        const yesButton = document.createElement("button");
+        yesButton.type = "button";
+        yesButton.className = "intel-point-action delete";
+        yesButton.textContent = "Yes";
+        yesButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onConfirmDelete();
+        });
+
+        const noButton = document.createElement("button");
+        noButton.type = "button";
+        noButton.className = "intel-point-action cancel";
+        noButton.textContent = "No";
+        noButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onCancelDelete();
+        });
+
+        actions.append(yesButton, noButton);
+        wrapper.append(message, actions);
+        return wrapper;
+    };
+
+    const formatIntelTimestamp = (timestamp) => {
+        if (!timestamp) {
+            return "Unknown";
+        }
+        const parsedTimestamp = new Date(timestamp);
+        if (Number.isNaN(parsedTimestamp.getTime())) {
+            return "Unknown";
+        }
+        return parsedTimestamp.toLocaleString();
+    };
+
+    const loadMarkerImageData = (imageURL) => {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                const width = image.naturalWidth || image.width;
+                const height = image.naturalHeight || image.height;
+                if (!width || !height) {
+                    reject(new Error("marker image has invalid dimensions"));
+                    return;
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const context = canvas.getContext("2d");
+                if (!context) {
+                    reject(new Error("could not create canvas context for marker image"));
+                    return;
+                }
+                context.drawImage(image, 0, 0, width, height);
+                resolve(context.getImageData(0, 0, width, height));
+            };
+            image.onerror = () => {
+                reject(new Error(`failed to load marker image: ${imageURL}`));
+            };
+            image.src = imageURL;
+        });
     };
 
     const calculateAccuracyCircle = (lat, lon, radiusMeters, pointsCount) => {
@@ -155,7 +627,7 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
         }
         const circularDegrees = 360.0;
         const bearingStep = circularDegrees / pointsCount;
-        const bearings = Array.from({length: pointsCount + 1}, (_, index) => index * bearingStep);
+        const bearings = Array.from({ length: pointsCount + 1 }, (_, index) => index * bearingStep);
         const radiusInKM = radiusMeters / 1000.0;
         const circleCoords = [];
         for (const bearing of bearings) {
@@ -171,21 +643,22 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
             console.warn("map is not ready yet");
             return;
         }
-        const features = [];
+
+        const emptyCollection = {
+            type: "FeatureCollection",
+            features: [],
+        };
+
         if (map.isStyleLoaded()) {
-            map.getSource("user")?.setData({
-                type: "FeatureCollection",
-                features,
-            });
+            map.getSource(userSourceID)?.setData(emptyCollection);
+            map.getSource(intelSourceID)?.setData(emptyCollection);
         } else {
             map.once("load", () => {
-                map.getSource("user")?.setData({
-                    type: "FeatureCollection",
-                    features,
-                });
+                map.getSource(userSourceID)?.setData(emptyCollection);
+                map.getSource(intelSourceID)?.setData(emptyCollection);
             });
         }
-    }
+    };
 
     const renderCurrentPosition = (coords) => {
         const map = roverMapRef.current;
@@ -193,53 +666,48 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
             console.warn("map is not ready yet");
             return;
         }
-        if (!position.coords) {
-            console.warn("coordinates are not available");
-            return;
-        }
 
-        const features = [];
         const accuracyZonePoints = calculateAccuracyCircle(
-                                        coords.latitude, 
-                                        coords.longitude, 
-                                        coords.accuracy, 
-                                        accuracyZonePointsCount
-                                    );
-        const currentLocation = {
-            type: "Feature",
-            properties: {
-                kind: "position"
-            },
-            geometry: {
-                type: "Point",
-                coordinates: [
-                    coords.longitude,
-                    coords.latitude,
-                ]
-            }
-        };
-        const accuracyZone = {
-            type: "Feature",
-            properties: {
-                kind: "accuracy"
-            },
-            geometry: {
-                type: "Polygon",
-                coordinates: [accuracyZonePoints],
-            }
-        };
+            coords.latitude,
+            coords.longitude,
+            coords.accuracy,
+            accuracyZonePointsCount,
+        );
 
-        features.push(currentLocation);
-        features.push(accuracyZone);
+        const features = [
+            {
+                type: "Feature",
+                properties: {
+                    kind: "position",
+                },
+                geometry: {
+                    type: "Point",
+                    coordinates: [
+                        coords.longitude,
+                        coords.latitude,
+                    ],
+                },
+            },
+            {
+                type: "Feature",
+                properties: {
+                    kind: "accuracy",
+                },
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [accuracyZonePoints],
+                },
+            },
+        ];
 
         if (map.isStyleLoaded()) {
-            map.getSource("user")?.setData({
+            map.getSource(userSourceID)?.setData({
                 type: "FeatureCollection",
                 features,
             });
         } else {
             map.once("load", () => {
-                map.getSource("user")?.setData({
+                map.getSource(userSourceID)?.setData({
                     type: "FeatureCollection",
                     features,
                 });
@@ -247,17 +715,17 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
         }
     };
 
-    const sendMapToLatest = (intelPoints) => {
-        if (intelPoints.length === 0) {
-            console.warn("no points - will not navigate the map");
+    const sendMapToLatest = (points) => {
+        if (points.length === 0) {
             return;
         }
-        const lastPoint = intelPoints.at(-1);
-        sendMapToPosition({ 
-            longitude: lastPoint.longitude, 
-            latitude: lastPoint.latitude 
+
+        const lastPoint = points.at(-1);
+        sendMapToPosition({
+            longitude: lastPoint.longitude,
+            latitude: lastPoint.latitude,
         });
-    }
+    };
 
     const sendMapToPosition = (coords) => {
         const map = roverMapRef.current;
@@ -268,81 +736,88 @@ export default function MapView({ position, intelPoints, onKeepIntel, onDiscardI
         map.flyTo({
             center: [
                 coords.longitude,
-                coords.latitude
+                coords.latitude,
             ],
-            zoom: 14 // TODO algo determine this
+            zoom: 14,
         });
-    }
+    };
 
     const renderIntelPoints = (points) => {
-        if (!roverMapRef.current) {
+        const map = roverMapRef.current;
+        if (!map) {
             console.warn("map is not ready");
             return;
         }
 
-        const map = roverMapRef.current;
-        const mapMarkers = roverMarkersRef.current;
-
-        points.forEach((point) => {
-            const existingPoint = mapMarkers.get(point.key);
-            if (!existingPoint) {
-                mapMarkers.set(
-                    point.key,
-                    newMapElement(point).addTo(map),
-                );
-                console.info(`added new point ${point.key} to map`);
+        const features = points.map((point) => {
+            let intelType = "new";
+            if (point.community) {
+                intelType = "community";
+            } else if (point.confirmed) {
+                intelType = "confirmed";
             }
+            return {
+                type: "Feature",
+                properties: {
+                    key: point.key,
+                    intelType,
+                },
+                geometry: {
+                    type: "Point",
+                    coordinates: [point.longitude, point.latitude],
+                },
+            };
         });
 
-        for (const [key, marker] of mapMarkers) {
-            const stillExists = points.some(
-                (point) => point.key === key
-            )
-            if (!stillExists) {
-                marker.remove();
-                mapMarkers.delete(key);
-                console.info(`removed old point ${key} to map`);
-            }
+        const featureCollection = {
+            type: "FeatureCollection",
+            features,
+        };
+
+        if (map.isStyleLoaded()) {
+            map.getSource(intelSourceID)?.setData(featureCollection);
+        } else {
+            map.once("load", () => {
+                map.getSource(intelSourceID)?.setData(featureCollection);
+            });
         }
     };
 
-    const newMapElement = (intelPoint) => {
-        const mapElement = document.createElement("div");
-        mapElement.className = "intel-marker";
-        mapElement.innerHTML = `
-        <div class="intel-tab">
-            <img class="intel-thumb" src="https://placehold.co/80x80" />
-        </div>
-        <div class="intel-actions">
-            <button class="intel-btn left">Keep</button>
-            <button class="intel-btn right">Delete</button>
-        </div>
-        `;
-        mapElement.addEventListener("click", (e) => {
-            const action = e.target?.dataset?.action;
-            if (action === "keep") {
-                invokeKeepIntel(intelPoint);
-            } else if (action === "discard") {
-                invokeDiscardIntel(intelPoint);
-            }
-        });
-        const longitude = intelPoint.longitude;
-        const latitude = intelPoint.latitude;
-        return new Marker({ element: mapElement }).setLngLat([longitude, latitude]);
-    };
+    const reviewIntelPoint = reviewIntelPointKey
+        ? intelPoints.find((point) => point.key === reviewIntelPointKey)
+        : null;
+    const reviewIntelTimestamp = formatIntelTimestamp(reviewIntelPoint?.timestamp);
 
-    // Evemts
-
-    const invokeKeepIntel = (intelPoint) => {
-        keepIntelRef.current?.(intelPoint);
-    };
-
-    const invokeDiscardIntel = (intelPoint) => {
-        discardIntelRef.current?.(intelPoint);
-    };
-
-    // DOM
     return (
-        <div className="map-rover" ref={roverMapContainerRef}></div>
-    )
+        <>
+            <div className="map-rover" ref={roverMapContainerRef}></div>
+            {reviewIntelPoint && (
+                <div className="intel-review-overlay"
+                     onClick={() => setReviewIntelPointKey(null)}>
+                    <div className="intel-review-dialog"
+                         onClick={(event) => event.stopPropagation()}>
+                        <button className="intel-review-close"
+                                type="button"
+                                onClick={() => setReviewIntelPointKey(null)}>
+                            X
+                        </button>
+                        <h3 className="intel-review-title">Intel Review</h3>
+                        {reviewIntelPoint.b64image ? (
+                            <img className="intel-review-image"
+                                 src={reviewIntelPoint.b64image}
+                                 alt="Captured intel" />
+                        ) : (
+                            <div className="intel-review-no-image">No image attached</div>
+                        )}
+                        <p className="intel-review-description">
+                            {reviewIntelPoint.description || "No description provided."}
+                        </p>
+                        <p className="intel-review-meta">
+                            Captured: {reviewIntelTimestamp}
+                        </p>
+                    </div>
+                </div>
+            )}
+        </>
+    );
 }
