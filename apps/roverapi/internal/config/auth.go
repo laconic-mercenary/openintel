@@ -10,11 +10,12 @@ import (
 )
 
 //
-// Consts and Globals
+// consts and globals
 
 var (
 	envVarFmt                         = "%s_%s"
 	envAuthEmailHashPepper            = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_HASH_PEPPER")
+	envAuthEncryptionSaltPepper       = fmt.Sprintf(envVarFmt, authEnvPrefix, "ENCRYPTION_SALT_PEPPER")
 	envAuthAllowedDomains             = fmt.Sprintf(envVarFmt, authEnvPrefix, "ALLOWED_DOMAINS")
 	envAuthCookieExpirySeconds        = fmt.Sprintf(envVarFmt, authEnvPrefix, "COOKIE_EXPIRY_SECS")
 	envAuthJWTSecret                  = fmt.Sprintf(envVarFmt, authEnvPrefix, "JWT_SECRET")
@@ -40,7 +41,7 @@ const (
 )
 
 //
-// Functions
+// functions
 
 func ServerlessMode() bool {
 	return true
@@ -100,6 +101,10 @@ func EmailHashPepper() string {
 	return getRequiredEnv(envAuthEmailHashPepper)
 }
 
+func EncryptionSaltPepper() string {
+	return getRequiredEnv(envAuthEncryptionSaltPepper)
+}
+
 func JWTSecret() []byte {
 	secret := []byte(getRequiredEnv(envAuthJWTSecret))
 	if len(secret) < jwtSecretMinLen {
@@ -116,7 +121,6 @@ func LoginCodeSenderEmail() string {
 }
 
 func LoginCodeExpiry() uint {
-	// return 60 * 10 // suggested value: 600 (10 minutes)
 	envStr := getRequiredEnv(envAuthLoginCodeExpiry)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {
@@ -126,7 +130,6 @@ func LoginCodeExpiry() uint {
 }
 
 func Argon2Memory() uint32 {
-	// return 64 * 1024 // suggested value: 65536 (64 KiB)
 	envStr := getRequiredEnv(envAuthArgon2Memory)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {
@@ -136,7 +139,6 @@ func Argon2Memory() uint32 {
 }
 
 func Argon2Iterations() uint32 {
-	// return 3 // suggested value: 3
 	envStr := getRequiredEnv(envAuthArgon2Iterations)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {
@@ -146,7 +148,6 @@ func Argon2Iterations() uint32 {
 }
 
 func Argon2Parallelism() uint8 {
-	// return 2 // suggested value: 2
 	envStr := getRequiredEnv(envAuthArgon2Parallelism)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 8)
 	if parseErr != nil {
@@ -156,7 +157,6 @@ func Argon2Parallelism() uint8 {
 }
 
 func Argon2SaltLength() uint32 {
-	// return 16 // suggested value: 16
 	envStr := getRequiredEnv(envAuthArgon2SaltLength)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {
@@ -166,7 +166,6 @@ func Argon2SaltLength() uint32 {
 }
 
 func Argon2KeyLength() uint32 {
-	// return 64 // suggested value: 64
 	envStr := getRequiredEnv(envAuthArgon2KeyLength)
 	envInt, parseErr := strconv.ParseUint(envStr, 10, 32)
 	if parseErr != nil {

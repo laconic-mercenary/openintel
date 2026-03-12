@@ -19,7 +19,7 @@ import (
 )
 
 //
-// Consts and Globals
+// consts and globals
 
 var (
 	ErrAbuseQueryRequired      = errors.New("osiAbuseDatabase is required")
@@ -189,6 +189,11 @@ func (service *AuthService) VerifyLoginCode(email string, userProvidedCode strin
 	return false, nil
 }
 
+func (service *AuthService) DeriveEncryptionSalt(email string) string {
+	log.Trace().Msg("DeriveEncryptionSalt")
+	return security.HmacSha256Hex(email, config.EncryptionSaltPepper())
+}
+
 func (service *AuthService) DeleteLoginCode(email string) error {
 	log.Trace().Msg("DeleteLoginCode")
 	authToken, authTokenErr := service.newAuthToken(email)
@@ -198,9 +203,6 @@ func (service *AuthService) DeleteLoginCode(email string) error {
 	}
 	return service.authTokens.DeleteAuthToken(authToken)
 }
-
-//
-// Private Methods
 
 func (service *AuthService) newAuthCode() (string, error) {
 	log.Trace().Msg("newAuthCode")
@@ -256,9 +258,9 @@ func NewAuthService(configs ...AuthServiceConfig) (*AuthService, error) {
 	log.Trace().Msg("NewAuthService")
 	authService := &AuthService{}
 	for _, configure := range configs {
-		err := configure(authService)
-		if err != nil {
-			return nil, err
+		cfgErr := configure(authService)
+		if cfgErr != nil {
+			return nil, cfgErr
 		}
 	}
 	if authService.osiAbuse == nil {

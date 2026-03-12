@@ -3,8 +3,12 @@ import { Crosshair, Locate, LocateFixed, LocateOff } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
+import EncryptionSetup from "./EncryptionSetup.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
+import { storeIntel, deleteIntel, getSalt } from "../utils/api";
+import { loadKey } from "../utils/keystore";
+import { encryptText, encryptBytes } from "../utils/crypto";
 
 import "./Rover.css";
 
@@ -27,16 +31,33 @@ export default function Rover() {
     const [position, setPosition] = useState(null);
     const [intelPoints, setIntelPoints] = useState([]);
     const [zoomToPositionSignal, setZoomToPositionSignal] = useState(0);
+    const [cryptoKey, setCryptoKey] = useState(null);
+    const [encSalt, setEncSalt] = useState(null);
 
     // References
 
     const positionRef = useRef(position);
+    const cryptoKeyRef = useRef(cryptoKey);
 
     // Effects
 
     useEffect(() => {
         positionRef.current = position;
     }, [position]);
+
+    useEffect(() => {
+        cryptoKeyRef.current = cryptoKey;
+    }, [cryptoKey]);
+
+    useEffect(() => {
+        loadKey().then((key) => {
+            if (key) {
+                setCryptoKey(key);
+            } else {
+                getSalt().then(setEncSalt).catch(console.error);
+            }
+        }).catch(console.error);
+    }, []);
 
     // Methods
 
@@ -105,15 +126,49 @@ export default function Rover() {
         // TODO - render a user message
     };
 
-    const onKeepIntel = (intelPoint) => {
-        setIntelPoints((previous) => {
-            return previous.map((point) => {
-                if (point.key === intelPoint.key) {
-                    return { ...point, confirmed: true };
-                }
-                return point;
+    const onKeepIntel = async (intelPoint) => {
+        const key = cryptoKeyRef.current;
+        try {
+            const encryptedDescription = intelPoint.description
+                ? await encryptText(key, intelPoint.description)
+                : intelPoint.description;
+
+            let encryptedImage = intelPoint.b64image;
+            if (intelPoint.b64image) {
+                const b64 = intelPoint.b64image.includes(',')
+                    ? intelPoint.b64image.split(',')[1]
+                    : intelPoint.b64image;
+                const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+                const encBytes = await encryptBytes(key, bytes.buffer);
+                encryptedImage = btoa(String.fromCharCode(...new Uint8Array(encBytes)));
+            }
+
+            const encryptedPoint = { ...intelPoint, description: encryptedDescription, b64image: encryptedImage };
+            const { geohash } = await storeIntel(encryptedPoint);
+            setIntelPoints((previous) => {
+                return previous.map((point) => {
+                    if (point.key === intelPoint.key) {
+                        return { ...point, confirmed: true, geohash, b64image: null, hasImage: !!point.b64image };
+                    }
+                    return point;
+                });
             });
-        });
+        } catch (error) {
+            console.error('failed to store intel:', error);
+            // TODO - render a user message
+        }
+    };
+
+    const onDeleteConfirmedIntel = async (intelPoint) => {
+        try {
+            await deleteIntel(intelPoint);
+            setIntelPoints((previous) => {
+                return previous.filter((point) => point.key !== intelPoint.key);
+            });
+        } catch (error) {
+            console.error('failed to delete intel:', error);
+            // TODO - render a user message
+        }
     };
 
     const onDiscardIntel = (intelPoint) => {
@@ -127,7 +182,12 @@ export default function Rover() {
     };
 
     // DOM
-    
+
+    if (!cryptoKey) {
+        if (!encSalt) return null;
+        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} />;
+    }
+
     return (
         <div className="rover-wrapper">
             <header className="rover-menu-header">
@@ -137,10 +197,11 @@ export default function Rover() {
             <Geolocation onPositionReady={onPositionReady} 
                         onPositionError={onPositionError} 
                         geolocationIsEnabled={geolocationIsEnabled} />
-            <MapView position={position} 
-                    intelPoints={intelPoints} 
+            <MapView position={position}
+                    intelPoints={intelPoints}
                     onKeepIntel={onKeepIntel}
                     onDiscardIntel={onDiscardIntel}
+                    onDeleteConfirmedIntel={onDeleteConfirmedIntel}
                     zoomToPositionSignal={zoomToPositionSignal}
                     geolocationIsEnabled={geolocationIsEnabled} />
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>

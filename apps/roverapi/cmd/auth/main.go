@@ -22,7 +22,7 @@ import (
 )
 
 //
-// Constants
+// consts and globals
 
 const (
 	emailFormParam       = "email"
@@ -92,11 +92,11 @@ func (handler *AuthHandler) handleCode(writer http.ResponseWriter, request *http
 
 	if deleteErr := handler.authService.DeleteLoginCode(email); deleteErr != nil {
 		log.Warn().Err(deleteErr).Msg("error deleting login code")
-		// the cleanup service will catch this
 	}
 
+	salt := handler.authService.DeriveEncryptionSalt(email)
 	redirectUrl := config.LoginRedirectURL()
-	server.RespondWithOk(writer, fmt.Appendf(nil, `{"status":"authenticated","redirectUrl":"%s"}`, redirectUrl))
+	server.RespondWithOk(writer, fmt.Appendf(nil, `{"status":"authenticated","redirectUrl":"%s","salt":"%s"}`, redirectUrl, salt))
 }
 
 func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *http.Request) {
@@ -163,6 +163,29 @@ func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *h
 		</html>
 		`, authCode)
 	server.RespondWithHtml(writer, htmlRx)
+}
+
+func (handler *AuthHandler) handleGetSalt(writer http.ResponseWriter, request *http.Request) {
+	log.Trace().Msg("handleGetSalt")
+
+	timestampNow := time.UnixTimestampMs()
+	logger := logging.NewTracingLogger()
+	defer logger.Debug().Int64("requestElapsedMs", logging.ElapsedMs(timestampNow)).Msg("request finished")
+
+	cookie, cookieErr := request.Cookie(cookieTokenKey)
+	if cookieErr != nil {
+		server.RespondWithError(writer, http.StatusUnauthorized, cookieErr, "missing auth cookie")
+		return
+	}
+
+	email, jwtErr := server.ValidateJWT(cookie.Value, config.JWTSecret())
+	if jwtErr != nil {
+		server.RespondWithError(writer, http.StatusUnauthorized, jwtErr, "invalid or expired session")
+		return
+	}
+
+	salt := handler.authService.DeriveEncryptionSalt(email)
+	server.RespondWithOk(writer, fmt.Appendf(nil, `{"salt":"%s"}`, salt))
 }
 
 func (handler *AuthHandler) handleEmailLink(writer http.ResponseWriter, request *http.Request) {
@@ -258,8 +281,8 @@ func awaitShutdown(apiServer *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownDeadlineSecs*gotime.Second)
 	defer cancel()
 
-	if err := apiServer.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("forced shutdown")
+	if shutdownErr := apiServer.Shutdown(ctx); shutdownErr != nil {
+		log.Fatal().Err(shutdownErr).Msg("forced shutdown")
 	}
 
 	log.Info().Msg("server stopped")
@@ -274,14 +297,16 @@ func main() {
 	authHandler := newAuthHandler()
 
 	emailLinkHandler := applyMiddleware(http.MethodPost, authHandler.handleEmailLink)
-	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode) // no origin check - accessed via direct browser navigation
+	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode)
 	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
+	getSaltHandler := applyMiddleware(http.MethodGet, authHandler.handleGetSalt)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/health", handleHealth)
 	mux.HandleFunc("/auth/email-link", emailLinkHandler)
 	mux.HandleFunc("/auth/get-code", getCodeHandler)
 	mux.HandleFunc("/auth/code-login", codeHandler)
+	mux.HandleFunc("/auth/salt", getSaltHandler)
 
 	apiServer := &http.Server{
 		Addr:    httpPort,

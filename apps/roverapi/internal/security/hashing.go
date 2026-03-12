@@ -1,9 +1,11 @@
 package security
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/argon2"
@@ -46,4 +48,10 @@ func HashSha256(plainText string) string {
 
 func Hash(plainText string) (string, error) {
 	return HashArgon2(plainText)
+}
+
+func HmacSha256Hex(data, key string) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(data))
+	return hex.EncodeToString(mac.Sum(nil))
 }
