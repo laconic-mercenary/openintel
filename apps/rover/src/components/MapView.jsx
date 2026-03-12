@@ -9,8 +9,9 @@ import markerNewUrl from "../assets/markers/intel-new.svg";
 import markerCommunityUrl from "../assets/markers/intel-community.svg";
 
 import { calculateSimpleCoord } from "../utils/geo";
+import { getIntelImageUrl } from "../utils/api";
 
-export default function MapView({ position, intelPoints, geolocationIsEnabled, onKeepIntel, onDiscardIntel, zoomToPositionSignal }) {
+export default function MapView({ position, intelPoints, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, zoomToPositionSignal }) {
     
     // Consts
     
@@ -130,7 +131,9 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
     const activeIntelActionsPopupRef = useRef(null);
     const activeIntelActionPointKeyRef = useRef(null);
     const activeIntelActionPopupTypeRef = useRef(null);
+    const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
     const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
+    const [reviewImageUrl, setReviewImageUrl] = useState(null);
 
     // Effects
 
@@ -187,6 +190,25 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
     useEffect(() => {
         discardIntelRef.current = onDiscardIntel;
     }, [onDiscardIntel]);
+
+    useEffect(() => {
+        deleteConfirmedIntelRef.current = onDeleteConfirmedIntel;
+    }, [onDeleteConfirmedIntel]);
+
+    useEffect(() => {
+        if (!reviewIntelPointKey) {
+            setReviewImageUrl(null);
+            return;
+        }
+        const point = intelPoints.find((p) => p.key === reviewIntelPointKey);
+        if (!point?.hasImage) {
+            setReviewImageUrl(null);
+            return;
+        }
+        getIntelImageUrl(point)
+            .then((url) => setReviewImageUrl(url))
+            .catch((error) => console.error("failed to fetch intel image url:", error));
+    }, [reviewIntelPointKey]);
 
     useEffect(() => {
         if (!geolocationIsEnabled) {
@@ -450,8 +472,7 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
 
         const popupContent = createConfirmedDeleteConfirmPopup(
             () => {
-                // TODO send confirmed intel delete to backend API.
-                discardIntelRef.current?.(intelPoint);
+                deleteConfirmedIntelRef.current?.(intelPoint);
                 removeIntelActionsPopup();
             },
             () => {
@@ -802,9 +823,9 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
                             X
                         </button>
                         <h3 className="intel-review-title">Intel Review</h3>
-                        {reviewIntelPoint.b64image ? (
+                        {reviewImageUrl ? (
                             <img className="intel-review-image"
-                                 src={reviewIntelPoint.b64image}
+                                 src={reviewImageUrl}
                                  alt="Captured intel" />
                         ) : (
                             <div className="intel-review-no-image">No image attached</div>
