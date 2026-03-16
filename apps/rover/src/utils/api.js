@@ -1,18 +1,10 @@
-const SALT_KEY = 'openintel_salt';
-
-export const storeSalt = (salt) => {
-    localStorage.setItem(SALT_KEY, salt);
-};
-
-export const getSalt = async () => {
-    const stored = localStorage.getItem(SALT_KEY);
-    if (stored) return stored;
-    const response = await fetch('/auth/salt');
+export const getSession = async () => {
+    const response = await fetch('/auth/me');
+    if (response.status === 401) return null;
     if (!response.ok) {
-        throw new Error(`failed to get salt: ${response.status}`);
+        throw new Error(`failed to get session: ${response.status}`);
     }
     const { salt } = await response.json();
-    localStorage.setItem(SALT_KEY, salt);
     return salt;
 };
 

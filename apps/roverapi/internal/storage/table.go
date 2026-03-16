@@ -57,7 +57,7 @@ func (repository *AzureTableIntelRepository) Initialize(ctx context.Context) err
 	_, createErr := repository.serviceClient.CreateTable(ctx, repository.tableName, nil)
 	if createErr != nil {
 		var respErr *azcore.ResponseError
-		if errors.As(createErr, &respErr) && respErr.ErrorCode == "TableAlreadyExists" {
+		if errors.As(createErr, &respErr) && respErr.ErrorCode == tableErrAlreadyExists {
 			return nil
 		}
 		log.Error().Err(createErr).Str("tableName", repository.tableName).Msg("error creating table")

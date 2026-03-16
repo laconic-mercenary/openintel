@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Crosshair, Locate, LocateFixed, LocateOff } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
@@ -6,7 +7,7 @@ import Intel from "./Intel.jsx";
 import EncryptionSetup from "./EncryptionSetup.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, deleteIntel, getSalt } from "../utils/api";
+import { storeIntel, deleteIntel, getSession } from "../utils/api";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes } from "../utils/crypto";
 
@@ -16,6 +17,7 @@ export default function Rover() {
 
     // Consts
 
+    const loginPath = "/login";
     const geolocationPositionTimeout = 5000;
     const geolocationOptions = {
         enableHighAccuracy: true,
@@ -36,6 +38,7 @@ export default function Rover() {
 
     // References
 
+    const navigate = useNavigate();
     const positionRef = useRef(position);
     const cryptoKeyRef = useRef(cryptoKey);
 
@@ -50,13 +53,21 @@ export default function Rover() {
     }, [cryptoKey]);
 
     useEffect(() => {
-        loadKey().then((key) => {
-            if (key) {
-                setCryptoKey(key);
-            } else {
-                getSalt().then(setEncSalt).catch(console.error);
-            }
-        }).catch(console.error);
+        getSession()
+            .then((salt) => {
+                if (!salt) {
+                    navigate(loginPath);
+                    return;
+                }
+                return loadKey().then((key) => {
+                    if (key) {
+                        setCryptoKey(key);
+                    } else {
+                        setEncSalt(salt);
+                    }
+                });
+            })
+            .catch(console.error);
     }, []);
 
     // Methods
@@ -199,6 +210,7 @@ export default function Rover() {
                         geolocationIsEnabled={geolocationIsEnabled} />
             <MapView position={position}
                     intelPoints={intelPoints}
+                    cryptoKey={cryptoKey}
                     onKeepIntel={onKeepIntel}
                     onDiscardIntel={onDiscardIntel}
                     onDeleteConfirmedIntel={onDeleteConfirmedIntel}

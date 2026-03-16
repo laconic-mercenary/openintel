@@ -32,7 +32,7 @@ const (
 )
 
 //
-// Types
+// types
 
 type AuthHandler struct {
 	authService *auth.AuthService
@@ -165,8 +165,8 @@ func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *h
 	server.RespondWithHtml(writer, htmlRx)
 }
 
-func (handler *AuthHandler) handleGetSalt(writer http.ResponseWriter, request *http.Request) {
-	log.Trace().Msg("handleGetSalt")
+func (handler *AuthHandler) handleMe(writer http.ResponseWriter, request *http.Request) {
+	log.Trace().Msg("handleMe")
 
 	timestampNow := time.UnixTimestampMs()
 	logger := logging.NewTracingLogger()
@@ -236,7 +236,16 @@ func handleHealth(writer http.ResponseWriter, request *http.Request) {
 func newAuthHandler() *AuthHandler {
 	log.Trace().Msg("newAuthHandler")
 
-	authTokensRepo := storage.NewInMemoryAuthTokenRepository()
+	authTokensRepo, authTokensRepoErr := storage.NewAzureTableAuthTokenRepository(
+		config.AuthTableConnStr(),
+		config.AuthTableName(),
+	)
+	if authTokensRepoErr != nil {
+		log.Fatal().Err(authTokensRepoErr).Msg("error creating auth token repository")
+	}
+	if initErr := authTokensRepo.Initialize(context.Background()); initErr != nil {
+		log.Fatal().Err(initErr).Msg("error initializing auth token table")
+	}
 
 	blockList := security.NewOSIEmailService()
 	emailer := server.NewEmptyEmailService()
@@ -299,14 +308,14 @@ func main() {
 	emailLinkHandler := applyMiddleware(http.MethodPost, authHandler.handleEmailLink)
 	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode)
 	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
-	getSaltHandler := applyMiddleware(http.MethodGet, authHandler.handleGetSalt)
+	meHandler := applyMiddleware(http.MethodGet, authHandler.handleMe)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/health", handleHealth)
 	mux.HandleFunc("/auth/email-link", emailLinkHandler)
 	mux.HandleFunc("/auth/get-code", getCodeHandler)
 	mux.HandleFunc("/auth/code-login", codeHandler)
-	mux.HandleFunc("/auth/salt", getSaltHandler)
+	mux.HandleFunc("/auth/me", meHandler)
 
 	apiServer := &http.Server{
 		Addr:    httpPort,

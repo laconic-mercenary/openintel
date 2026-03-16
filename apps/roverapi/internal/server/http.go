@@ -19,6 +19,7 @@ const (
 	ContentTypeJSON   = "application/json"
 	ContentTypeHTML   = "text/html"
 	authTokenGetParam = "x"
+	cookieAuthToken   = "auth_token"
 )
 
 //
@@ -84,6 +85,23 @@ func WithMethodCheck(method string, next http.HandlerFunc) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != method {
 			RespondWithError(writer, http.StatusMethodNotAllowed, nil, "unsupported method")
+			return
+		}
+		next(writer, request)
+	}
+}
+
+// Cookie auth middleware
+func WithCookieAuth(jwtSecret []byte, next http.HandlerFunc) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		cookie, cookieErr := request.Cookie(cookieAuthToken)
+		if cookieErr != nil {
+			RespondUnauthorized(writer)
+			return
+		}
+		_, jwtErr := ValidateJWT(cookie.Value, jwtSecret)
+		if jwtErr != nil {
+			RespondUnauthorized(writer)
 			return
 		}
 		next(writer, request)

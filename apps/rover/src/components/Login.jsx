@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 import "./Login.css";
 
@@ -6,6 +7,7 @@ export default function Login() {
 
     // Consts
 
+    const roverPath = "/";
     const loginStepEmail = "email";
     const loginStepWait = "wait";
     const loginStepCode = "code";
@@ -24,6 +26,8 @@ export default function Login() {
     const [step, setStep] = useState(loginStepEmail);
 
     // References
+
+    const navigate = useNavigate();
 
     const timerHandle = useRef(null);
 
@@ -124,12 +128,7 @@ export default function Login() {
                 console.error(result.statusText);
                 return;
             }
-            const data = await result.json();
-            if (data.redirectUrl) {
-                window.location.replace(data.redirectUrl);
-            } else {
-                console.error("redirectUrl not specified");
-            }
+            navigate(roverPath);
         } catch (err) {
             console.error(err);
         }

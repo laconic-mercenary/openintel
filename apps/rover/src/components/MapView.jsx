@@ -10,8 +10,9 @@ import markerCommunityUrl from "../assets/markers/intel-community.svg";
 
 import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
+import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, zoomToPositionSignal }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, zoomToPositionSignal }) {
     
     // Consts
     
@@ -134,6 +135,7 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
     const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
     const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
     const [reviewImageUrl, setReviewImageUrl] = useState(null);
+    const reviewBlobUrlRef = useRef(null);
 
     // Effects
 
@@ -197,6 +199,10 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
 
     useEffect(() => {
         if (!reviewIntelPointKey) {
+            if (reviewBlobUrlRef.current) {
+                URL.revokeObjectURL(reviewBlobUrlRef.current);
+                reviewBlobUrlRef.current = null;
+            }
             setReviewImageUrl(null);
             return;
         }
@@ -205,9 +211,24 @@ export default function MapView({ position, intelPoints, geolocationIsEnabled, o
             setReviewImageUrl(null);
             return;
         }
+        let cancelled = false;
         getIntelImageUrl(point)
-            .then((url) => setReviewImageUrl(url))
-            .catch((error) => console.error("failed to fetch intel image url:", error));
+            .then((presignedUrl) => fetch(presignedUrl))
+            .then((response) => response.arrayBuffer())
+            .then((encryptedBuffer) => decryptBytes(cryptoKey, encryptedBuffer))
+            .then((plaintextBuffer) => {
+                if (cancelled) return;
+                if (reviewBlobUrlRef.current) {
+                    URL.revokeObjectURL(reviewBlobUrlRef.current);
+                }
+                const blobUrl = URL.createObjectURL(new Blob([plaintextBuffer], { type: 'image/jpeg' }));
+                reviewBlobUrlRef.current = blobUrl;
+                setReviewImageUrl(blobUrl);
+            })
+            .catch((error) => {
+                if (!cancelled) console.error("failed to load intel image:", error);
+            });
+        return () => { cancelled = true; };
     }, [reviewIntelPointKey]);
 
     useEffect(() => {

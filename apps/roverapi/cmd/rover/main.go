@@ -191,11 +191,14 @@ func main() {
 		log.Fatal().Err(roverServiceErr).Msg("failed to create rover service")
 	}
 
+	jwtSecret := config.JWTSecret()
+	allowedOrigins := config.AllowedRoverOrigins()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rover/health", handleHealth)
-	mux.HandleFunc("/rover/intel", server.WithMethodCheck(http.MethodPost, handleStoreIntel(roverService)))
-	mux.HandleFunc("GET /rover/intel/{geohash}/{key}/image-url", handleGetIntelImageURL(roverService))
-	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", handleDeleteIntel(roverService))
+	mux.HandleFunc("/rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithMethodCheck(http.MethodPost, handleStoreIntel(roverService)))))
+	mux.HandleFunc("GET /rover/intel/{geohash}/{key}/image-url", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleGetIntelImageURL(roverService))))
+	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleDeleteIntel(roverService))))
 
 	apiServer := &http.Server{
 		Addr:    httpPort,

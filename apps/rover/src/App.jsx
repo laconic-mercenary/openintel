@@ -1,18 +1,17 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './App.css'
 
-//
-// Components
 import Login from './components/Login';
 import Rover from './components/Rover';
 
-
-//
-// App
-
 function App() {
   return (
-    // <Login />
-    <Rover />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={<Rover />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

@@ -26,6 +26,8 @@ services:
     ports:
       - "8080:8080"
     environment:
+      ROVERAPI_AUTH_TABLE_CONN_STR: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+      ROVERAPI_AUTH_TABLE_NAME: "openintelauth"
       ROVERAPI_AUTH_EMAIL_HASH_PEPPER: "your-pepper-here-change-in-production"
       ROVERAPI_AUTH_ENCRYPTION_SALT_PEPPER: "your-salt-pepper-here-change-in-production"
       ROVERAPI_AUTH_ALLOWED_DOMAINS: "http://localhost:8085,http://localhost:3000,http://localhost:8080"
@@ -53,6 +55,7 @@ services:
       - "8081:8081"
     environment:
       ROVERAPI_LOG_LEVEL: "debug"
+      ROVERAPI_AUTH_JWT_SECRET: "your-jwt-secret-must-be-at-least-32-bytes-long"
       ROVERAPI_ROVER_TABLE_CONN_STR: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://azurite:10002/devstoreaccount1;"
       ROVERAPI_ROVER_TABLE_NAME: "openintelintel"
       ROVERAPI_ROVER_STORE_ENDPOINT: "http://minio:9000"
@@ -60,6 +63,7 @@ services:
       ROVERAPI_ROVER_STORE_BUCKET: "intel"
       ROVERAPI_ROVER_STORE_ACCESS_KEY: "minioadmin"
       ROVERAPI_ROVER_STORE_SECRET_KEY: "minioadmin"
+      ROVERAPI_ROVER_ALLOWED_ORIGINS: "http://localhost:8085,http://localhost:3000"
     networks:
       - roverapi-net
     depends_on:
