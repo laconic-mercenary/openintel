@@ -38,7 +38,7 @@ const (
 )
 
 //
-// Types
+// types
 
 type AuthService struct {
 	osiAbuse       storage.EmailAbuseQueryRepository

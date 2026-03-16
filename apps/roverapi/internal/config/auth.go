@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -13,12 +12,12 @@ import (
 // consts and globals
 
 var (
-	envVarFmt                         = "%s_%s"
+	envAuthTableConnStr               = fmt.Sprintf(envVarFmt, authEnvPrefix, "TABLE_CONN_STR")
+	envAuthTableName                  = fmt.Sprintf(envVarFmt, authEnvPrefix, "TABLE_NAME")
 	envAuthEmailHashPepper            = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_HASH_PEPPER")
 	envAuthEncryptionSaltPepper       = fmt.Sprintf(envVarFmt, authEnvPrefix, "ENCRYPTION_SALT_PEPPER")
 	envAuthAllowedDomains             = fmt.Sprintf(envVarFmt, authEnvPrefix, "ALLOWED_DOMAINS")
 	envAuthCookieExpirySeconds        = fmt.Sprintf(envVarFmt, authEnvPrefix, "COOKIE_EXPIRY_SECS")
-	envAuthJWTSecret                  = fmt.Sprintf(envVarFmt, authEnvPrefix, "JWT_SECRET")
 	envAuthEmailLoginDomain           = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_LOGIN_DOMAIN")
 	envAuthLoginCodeSender            = fmt.Sprintf(envVarFmt, authEnvPrefix, "LOGIN_CODE_SENDER")
 	envAuthLoginCodeExpiry            = fmt.Sprintf(envVarFmt, authEnvPrefix, "LOGIN_CODE_EXPIRY")
@@ -35,17 +34,12 @@ var (
 )
 
 const (
-	authEnvPrefix   = "ROVERAPI_AUTH"
-	roverEnvPrefix  = "ROVERAPI_"
-	jwtSecretMinLen = 32
+	authEnvPrefix  = "ROVERAPI_AUTH"
+	roverEnvPrefix = "ROVERAPI_"
 )
 
 //
 // functions
-
-func ServerlessMode() bool {
-	return true
-}
 
 func AuthRateLimiterAttempts() uint {
 	envStr := getRequiredEnv(envAuthRateLimiterAttempts)
@@ -97,23 +91,20 @@ func AllowedAuthOrigins() []string {
 	return origins
 }
 
+func AuthTableConnStr() string {
+	return getRequiredEnv(envAuthTableConnStr)
+}
+
+func AuthTableName() string {
+	return getRequiredEnv(envAuthTableName)
+}
+
 func EmailHashPepper() string {
 	return getRequiredEnv(envAuthEmailHashPepper)
 }
 
 func EncryptionSaltPepper() string {
 	return getRequiredEnv(envAuthEncryptionSaltPepper)
-}
-
-func JWTSecret() []byte {
-	secret := []byte(getRequiredEnv(envAuthJWTSecret))
-	if len(secret) < jwtSecretMinLen {
-		log.Fatal().
-			Int("minLength", jwtSecretMinLen).
-			Int("actualLen", len(secret)).
-			Msg("JWTSecret does not meet minimum length")
-	}
-	return secret
 }
 
 func LoginCodeSenderEmail() string {
@@ -175,17 +166,9 @@ func Argon2KeyLength() uint32 {
 }
 
 func AuthCookieDomain() string {
-	return os.Getenv(envAuthCookieDomain) // empty = scoped to exact host (localhost-friendly)
+	return getOptionalEnv(envAuthCookieDomain)
 }
 
 func LoginRedirectURL() string {
 	return getRequiredEnv(envAuthLoginRedirectURL)
-}
-
-func getRequiredEnv(envVar string) string {
-	val := os.Getenv(envVar)
-	if val == "" {
-		log.Fatal().Str("envVar", envVar).Msg("required environment variable is missing")
-	}
-	return val
 }
