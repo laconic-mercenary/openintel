@@ -32,12 +32,11 @@ func AuthTokenGetParam() string {
 func HasAllowedOrigin(request *http.Request, allowedOrigins []string) bool {
 	log.Trace().Msg("HasAllowedOrigin")
 	origin := request.Header.Get(HeaderOrigin)
-	if origin != "" {
-		if slices.Contains(allowedOrigins, origin) {
-			return true
-		}
+	if origin == "" {
+		log.Warn().Str("path", request.URL.Path).Msg("no origin header — allowing (proxied or same-origin request)")
+		return true
 	}
-	return false
+	return slices.Contains(allowedOrigins, origin)
 }
 
 func RespondWithOk(response http.ResponseWriter, responseBody []byte) {
@@ -89,6 +88,18 @@ func WithMethodCheck(method string, next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(writer, request)
 	}
+}
+
+func EmailFromCookie(request *http.Request, jwtSecret []byte) (string, error) {
+	cookie, cookieErr := request.Cookie(cookieAuthToken)
+	if cookieErr != nil {
+		return "", cookieErr
+	}
+	email, jwtErr := ValidateJWT(cookie.Value, jwtSecret)
+	if jwtErr != nil {
+		return "", jwtErr
+	}
+	return email, nil
 }
 
 // Cookie auth middleware

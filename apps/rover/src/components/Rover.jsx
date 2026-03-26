@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, Locate, LocateFixed, LocateOff } from "lucide-react";
+import { Crosshair, Locate, LocateFixed, LocateOff, LogOut } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
 import EncryptionSetup from "./EncryptionSetup.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, deleteIntel, getSession } from "../utils/api";
+import { storeIntel, listIntel, deleteIntel, getSession, logout } from "../utils/api";
 import { loadKey } from "../utils/keystore";
-import { encryptText, encryptBytes } from "../utils/crypto";
+import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
+import { coordsToGeohash5, bboxToGeohash5Cells } from "../utils/geo";
 
 import "./Rover.css";
 
@@ -18,6 +19,7 @@ export default function Rover() {
     // Consts
 
     const loginPath = "/login";
+    const minIntelQueryZoom = 10;
     const geolocationPositionTimeout = 5000;
     const geolocationOptions = {
         enableHighAccuracy: true,
@@ -33,8 +35,10 @@ export default function Rover() {
     const [position, setPosition] = useState(null);
     const [intelPoints, setIntelPoints] = useState([]);
     const [zoomToPositionSignal, setZoomToPositionSignal] = useState(0);
+    const [zoomToNewIntelSignal, setZoomToNewIntelSignal] = useState(0);
     const [cryptoKey, setCryptoKey] = useState(null);
     const [encSalt, setEncSalt] = useState(null);
+    const [errorMessage, setErrorMessage] = useState(null);
 
     // References
 
@@ -88,6 +92,7 @@ export default function Rover() {
     const addIntelPoint = (description, b64Image, coords) => {
         const intelCandidate = newIntelCandidate(description, b64Image, coords);
         setIntelPoints((previous) => [...previous, intelCandidate]);
+        setZoomToNewIntelSignal((previous) => previous + 1);
         setIntelIsOpen(false);
     };
 
@@ -99,8 +104,8 @@ export default function Rover() {
     };
 
     const onPositionError = (error) => {
-        // TODO show visual error to user
         console.error(error);
+        setErrorMessage("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
     };
 
     const onIntelReady = (description, b64Image) => {
@@ -127,6 +132,7 @@ export default function Rover() {
             },
             (error) => {
                 console.error(error);
+                setErrorMessage("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
             },
             geolocationOptions,
         );
@@ -134,17 +140,24 @@ export default function Rover() {
 
     const onIntelError = (error) => {
         console.error(error);
-        // TODO - render a user message
+        setErrorMessage("Something went wrong capturing intel — please try again.");
     };
 
     const onKeepIntel = async (intelPoint) => {
         const key = cryptoKeyRef.current;
         try {
-            const encryptedDescription = intelPoint.description
-                ? await encryptText(key, intelPoint.description)
-                : intelPoint.description;
+            const geohash = coordsToGeohash5(intelPoint.latitude, intelPoint.longitude);
 
-            let encryptedImage = intelPoint.b64image;
+            const payload = JSON.stringify({
+                lat: intelPoint.latitude,
+                lon: intelPoint.longitude,
+                accuracy: intelPoint.accuracy,
+                description: intelPoint.description,
+                timestamp: intelPoint.timestamp,
+            });
+            const encryptedPayload = await encryptText(key, payload);
+
+            let encryptedImage = null;
             if (intelPoint.b64image) {
                 const b64 = intelPoint.b64image.includes(',')
                     ? intelPoint.b64image.split(',')[1]
@@ -154,19 +167,28 @@ export default function Rover() {
                 encryptedImage = btoa(String.fromCharCode(...new Uint8Array(encBytes)));
             }
 
-            const encryptedPoint = { ...intelPoint, description: encryptedDescription, b64image: encryptedImage };
-            const { geohash } = await storeIntel(encryptedPoint);
-            setIntelPoints((previous) => {
-                return previous.map((point) => {
-                    if (point.key === intelPoint.key) {
-                        return { ...point, confirmed: true, geohash, b64image: null, hasImage: !!point.b64image };
-                    }
-                    return point;
-                });
+            const { key: rowKey } = await storeIntel({
+                key: intelPoint.key,
+                geohash,
+                encryptedPayload,
+                encryptedImage,
+                timestamp: intelPoint.timestamp,
             });
+
+            setIntelPoints((previous) => previous.map((point) => {
+                if (point.key !== intelPoint.key) return point;
+                return {
+                    ...point,
+                    key: rowKey,
+                    geohash,
+                    confirmed: true,
+                    b64image: null,
+                    hasImage: !!intelPoint.b64image,
+                };
+            }));
         } catch (error) {
             console.error('failed to store intel:', error);
-            // TODO - render a user message
+            setErrorMessage("Failed to save intel — please try again.");
         }
     };
 
@@ -178,7 +200,44 @@ export default function Rover() {
             });
         } catch (error) {
             console.error('failed to delete intel:', error);
-            // TODO - render a user message
+            setErrorMessage("Failed to delete intel — please try again.");
+        }
+    };
+
+    const onBoundsChange = async (minLat, minLon, maxLat, maxLon, zoom) => {
+        const key = cryptoKeyRef.current;
+        if (!key) return;
+        if (zoom < minIntelQueryZoom) return;
+        try {
+            const items = await listIntel(minLat, minLon, maxLat, maxLon);
+            const decrypted = await Promise.all(items.map(async (item) => {
+                const plaintext = await decryptText(key, item.encryptedPayload);
+                const { lat, lon, accuracy, description, timestamp } = JSON.parse(plaintext);
+                return {
+                    key: item.key,
+                    geohash: item.geohash,
+                    latitude: lat,
+                    longitude: lon,
+                    accuracy,
+                    description,
+                    timestamp,
+                    hasImage: item.hasImage,
+                    confirmed: true,
+                    b64image: null,
+                    fromServer: true,
+                };
+            }));
+            setIntelPoints((previous) => {
+                const currentCells = new Set(bboxToGeohash5Cells(minLat, minLon, maxLat, maxLon));
+                const inSession = previous.filter((p) => !p.fromServer);
+                const retained = previous.filter((p) => p.fromServer && currentCells.has(p.geohash));
+                const retainedKeys = new Set(retained.map((p) => p.key));
+                const incoming = decrypted.filter((p) => !retainedKeys.has(p.key));
+                return [...inSession, ...retained, ...incoming];
+            });
+        } catch (error) {
+            console.error('failed to load intel from server:', error);
+            setErrorMessage("Failed to load intel — check your connection and try panning the map.");
         }
     };
 
@@ -192,6 +251,16 @@ export default function Rover() {
         setZoomToPositionSignal((previous) => previous + 1);
     };
 
+    const onLogout = async () => {
+        try {
+            await logout();
+            navigate(loginPath);
+        } catch (error) {
+            console.error('failed to logout:', error);
+            setErrorMessage("Failed to logout — please try again.");
+        }
+    };
+
     // DOM
 
     if (!cryptoKey) {
@@ -200,7 +269,13 @@ export default function Rover() {
     }
 
     return (
-        <div className="rover-wrapper">
+        <div className={`rover-wrapper${errorMessage ? " has-error" : ""}`}>
+            { errorMessage && (
+                <div className="rover-error-banner">
+                    <span>⚠ {errorMessage}</span>
+                    <button className="rover-error-banner-dismiss" onClick={() => setErrorMessage(null)}>✕</button>
+                </div>
+            )}
             <header className="rover-menu-header">
                 <button className="rover-menu-expander"
                         onClick={() => setMenuIsOpen((previous) => !previous)}>≡</button>
@@ -214,7 +289,10 @@ export default function Rover() {
                     onKeepIntel={onKeepIntel}
                     onDiscardIntel={onDiscardIntel}
                     onDeleteConfirmedIntel={onDeleteConfirmedIntel}
+                    onBoundsChange={onBoundsChange}
+                    onError={setErrorMessage}
                     zoomToPositionSignal={zoomToPositionSignal}
+                    zoomToNewIntelSignal={zoomToNewIntelSignal}
                     geolocationIsEnabled={geolocationIsEnabled} />
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
@@ -232,7 +310,7 @@ export default function Rover() {
                             Zoom To Me
                         </span>
                     </button>
-                    <button className={geolocationIsEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"} 
+                    <button className={geolocationIsEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"}
                             onClick={() => setGeolocationIsEnabled((previous) => !previous)}>
                         <span className="rover-menu-item-label">
                             {geolocationIsEnabled ? (
@@ -243,6 +321,12 @@ export default function Rover() {
                             Geolocation
                         </span>
                     </button>
+                    <button className="rover-menu-item" onClick={onLogout}>
+                        <span className="rover-menu-item-label">
+                            <LogOut className="rover-menu-item-icon" aria-hidden="true" />
+                            Logout
+                        </span>
+                    </button>
                 </nav>
             </div>
             { intelIsOpen && (<Intel onIntelReady={onIntelReady} 
@@ -251,3 +335,4 @@ export default function Rover() {
         </div>
     )
 }
+         

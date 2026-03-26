@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
@@ -16,43 +15,42 @@ import (
 // types
 
 type intelTableEntity struct {
-	PartitionKey   string `json:"PartitionKey"`
-	RowKey         string `json:"RowKey"`
-	Description    string `json:"Description"`
-	Latitude       string `json:"Latitude"`
-	Longitude      string `json:"Longitude"`
-	Accuracy       string `json:"Accuracy"`
-	IntelTimestamp string `json:"IntelTimestamp"`
-	ImageKey       string `json:"ImageKey"`
+	PartitionKey        string `json:"PartitionKey"`
+	RowKey              string `json:"RowKey"`
+	TimestampObfuscated int64  `json:"TimestampObfuscated"`
+	EncryptedPayload    string `json:"EncryptedPayload"`
+	ImageKey            string `json:"ImageKey"`
 }
 
-type AzureTableIntelRepository struct {
+type AZPrivateIntelRepository struct {
 	serviceClient *aztables.ServiceClient
 	tableClient   *aztables.Client
 	tableName     string
+	secretBase    int64
 }
 
 //
 // functions
 
-func NewAzureTableIntelRepository(connStr, tableName string) (*AzureTableIntelRepository, error) {
-	log.Trace().Msg("NewAzureTableIntelRepository")
+func NewAZPrivateIntelRepository(connStr, tableName string, secretBase int64) (*AZPrivateIntelRepository, error) {
+	log.Trace().Msg("NewAZPrivateIntelRepository")
 	serviceClient, serviceClientErr := aztables.NewServiceClientFromConnectionString(connStr, nil)
 	if serviceClientErr != nil {
 		log.Error().Err(serviceClientErr).Msg("error creating azure table service client")
 		return nil, serviceClientErr
 	}
-	return &AzureTableIntelRepository{
+	return &AZPrivateIntelRepository{
 		serviceClient: serviceClient,
 		tableClient:   serviceClient.NewClient(tableName),
 		tableName:     tableName,
+		secretBase:    secretBase,
 	}, nil
 }
 
 //
 // methods
 
-func (repository *AzureTableIntelRepository) Initialize(ctx context.Context) error {
+func (repository *AZPrivateIntelRepository) Initialize(ctx context.Context) error {
 	log.Trace().Msg("Initialize")
 	_, createErr := repository.serviceClient.CreateTable(ctx, repository.tableName, nil)
 	if createErr != nil {
@@ -66,85 +64,132 @@ func (repository *AzureTableIntelRepository) Initialize(ctx context.Context) err
 	return nil
 }
 
-func (repository *AzureTableIntelRepository) StoreIntelMetadata(ctx context.Context, intel Intel) error {
-	log.Trace().Msg("StoreIntelMetadata")
+func (repository *AZPrivateIntelRepository) StorePrivateIntelMetadata(ctx context.Context, intel PrivateIntel) (string, error) {
+	log.Trace().Msg("StorePrivateIntelMetadata")
+	partitionKey := intel.EmailHash + intel.Geohash
+	rowKey := fmt.Sprintf("%020d-%s", repository.secretBase-intel.TimestampObfuscated, intel.Key)
 	entity := intelTableEntity{
-		PartitionKey:   intel.Geohash,
-		RowKey:         intel.Key,
-		Description:    intel.Description,
-		Latitude:       strconv.FormatFloat(intel.Latitude, 'f', -1, 64),
-		Longitude:      strconv.FormatFloat(intel.Longitude, 'f', -1, 64),
-		Accuracy:       strconv.FormatFloat(intel.Accuracy, 'f', -1, 64),
-		IntelTimestamp: strconv.FormatInt(intel.Timestamp, 10),
-		ImageKey:       intel.ImageKey,
+		PartitionKey:        partitionKey,
+		RowKey:              rowKey,
+		TimestampObfuscated: intel.TimestampObfuscated,
+		EncryptedPayload:    intel.EncryptedPayload,
+		ImageKey:            intel.ImageKey,
 	}
 	entityBytes, marshalErr := json.Marshal(entity)
 	if marshalErr != nil {
 		log.Error().Err(marshalErr).Msg("error marshaling intel entity")
-		return marshalErr
+		return "", marshalErr
 	}
 	_, addErr := repository.tableClient.AddEntity(ctx, entityBytes, nil)
 	if addErr != nil {
 		log.Error().Err(addErr).Str("key", intel.Key).Msg("error adding intel entity to table")
-		return addErr
+		return "", addErr
 	}
-	return nil
+	return rowKey, nil
 }
 
-func (repository *AzureTableIntelRepository) GetIntelMetadata(ctx context.Context, geohash, key string) (Intel, error) {
-	log.Trace().Msg("GetIntelMetadata")
-	resp, getErr := repository.tableClient.GetEntity(ctx, geohash, key, nil)
+func (repository *AZPrivateIntelRepository) GetPrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) (PrivateIntel, error) {
+	log.Trace().Msg("GetPrivateIntelMetadata")
+	resp, getErr := repository.tableClient.GetEntity(ctx, partitionKey, rowKey, nil)
 	if getErr != nil {
-		log.Error().Err(getErr).Str("key", key).Msg("error getting intel entity from table")
-		return Intel{}, getErr
+		log.Error().Err(getErr).Str("partitionKey", partitionKey).Str("rowKey", rowKey).Msg("error getting intel entity from table")
+		return PrivateIntel{}, getErr
 	}
 	var entity intelTableEntity
 	unmarshalErr := json.Unmarshal(resp.Value, &entity)
 	if unmarshalErr != nil {
-		log.Error().Err(unmarshalErr).Str("key", key).Msg("error unmarshaling intel entity")
-		return Intel{}, unmarshalErr
+		log.Error().Err(unmarshalErr).Str("rowKey", rowKey).Msg("error unmarshaling intel entity")
+		return PrivateIntel{}, unmarshalErr
 	}
-	return parseIntelEntity(entity)
+	return entityToPrivateIntel(entity), nil
 }
 
-func (repository *AzureTableIntelRepository) DeleteIntelMetadata(ctx context.Context, geohash, key string) error {
-	log.Trace().Msg("DeleteIntelMetadata")
+func (repository *AZPrivateIntelRepository) DeletePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) error {
+	log.Trace().Msg("DeletePrivateIntelMetadata")
 	etag := azcore.ETag("*")
-	_, deleteErr := repository.tableClient.DeleteEntity(ctx, geohash, key, &aztables.DeleteEntityOptions{
+	_, deleteErr := repository.tableClient.DeleteEntity(ctx, partitionKey, rowKey, &aztables.DeleteEntityOptions{
 		IfMatch: &etag,
 	})
 	if deleteErr != nil {
-		log.Error().Err(deleteErr).Str("key", key).Msg("error deleting intel entity from table")
+		log.Error().Err(deleteErr).Str("partitionKey", partitionKey).Str("rowKey", rowKey).Msg("error deleting intel entity from table")
 		return deleteErr
 	}
 	return nil
 }
 
-func parseIntelEntity(entity intelTableEntity) (Intel, error) {
-	latitude, latErr := strconv.ParseFloat(entity.Latitude, 64)
-	if latErr != nil {
-		return Intel{}, fmt.Errorf("invalid latitude in table: %w", latErr)
+func (repository *AZPrivateIntelRepository) ListPrivateIntelByGeohashes(ctx context.Context, emailHash string, geohashes []string) ([]PrivateIntel, error) {
+	log.Trace().Msg("ListPrivateIntelByGeohashes")
+
+	type queryResult struct {
+		items []PrivateIntel
+		err   error
 	}
-	longitude, lonErr := strconv.ParseFloat(entity.Longitude, 64)
-	if lonErr != nil {
-		return Intel{}, fmt.Errorf("invalid longitude in table: %w", lonErr)
+
+	results := make(chan queryResult, len(geohashes))
+
+	for _, geohash := range geohashes {
+		go func(gh string) {
+			partitionKey := emailHash + gh
+			items, queryErr := repository.queryPartition(ctx, partitionKey)
+			results <- queryResult{items, queryErr}
+		}(geohash)
 	}
-	accuracy, accErr := strconv.ParseFloat(entity.Accuracy, 64)
-	if accErr != nil {
-		return Intel{}, fmt.Errorf("invalid accuracy in table: %w", accErr)
+
+	var all []PrivateIntel
+	var firstErr error
+	for range geohashes {
+		r := <-results
+		if r.err != nil && firstErr == nil {
+			firstErr = r.err
+		}
+		all = append(all, r.items...)
 	}
-	timestamp, tsErr := strconv.ParseInt(entity.IntelTimestamp, 10, 64)
-	if tsErr != nil {
-		return Intel{}, fmt.Errorf("invalid timestamp in table: %w", tsErr)
+	if firstErr != nil {
+		log.Error().Err(firstErr).Msg("error querying one or more geohash partitions")
+		return nil, firstErr
 	}
-	return Intel{
-		Key:         entity.RowKey,
-		Geohash:     entity.PartitionKey,
-		Description: entity.Description,
-		Latitude:    latitude,
-		Longitude:   longitude,
-		Accuracy:    accuracy,
-		Timestamp:   timestamp,
-		ImageKey:    entity.ImageKey,
-	}, nil
+	return all, nil
+}
+
+func (repository *AZPrivateIntelRepository) queryPartition(ctx context.Context, partitionKey string) ([]PrivateIntel, error) {
+	filter := fmt.Sprintf("PartitionKey eq '%s'", partitionKey)
+	pager := repository.tableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
+		Filter: &filter,
+	})
+	var items []PrivateIntel
+	for pager.More() {
+		page, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			log.Error().Err(pageErr).Str("partitionKey", partitionKey).Msg("error listing intel entities")
+			return nil, pageErr
+		}
+		for _, entityBytes := range page.Entities {
+			var entity intelTableEntity
+			unmarshalErr := json.Unmarshal(entityBytes, &entity)
+			if unmarshalErr != nil {
+				log.Error().Err(unmarshalErr).Msg("error unmarshaling intel entity in list")
+				return nil, unmarshalErr
+			}
+			items = append(items, entityToPrivateIntel(entity))
+		}
+	}
+	return items, nil
+}
+
+func entityToPrivateIntel(entity intelTableEntity) PrivateIntel {
+	const emailHashLen = 64 // HMAC-SHA256 hex = 64 chars
+	geohash := ""
+	emailHash := ""
+	if len(entity.PartitionKey) > emailHashLen {
+		emailHash = entity.PartitionKey[:emailHashLen]
+		geohash = entity.PartitionKey[emailHashLen:]
+	}
+	return PrivateIntel{
+		Key:                 entity.RowKey,
+		Geohash:             geohash,
+		EmailHash:           emailHash,
+		TimestampObfuscated: entity.TimestampObfuscated,
+		EncryptedPayload:    entity.EncryptedPayload,
+		ImageKey:            entity.ImageKey,
+	}
 }

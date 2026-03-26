@@ -165,6 +165,21 @@ func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *h
 	server.RespondWithHtml(writer, htmlRx)
 }
 
+func (handler *AuthHandler) handleLogout(writer http.ResponseWriter, request *http.Request) {
+	log.Trace().Msg("handleLogout")
+	http.SetCookie(writer, &http.Cookie{
+		Name:     cookieTokenKey,
+		Value:    "",
+		Domain:   config.AuthCookieDomain(),
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	server.RespondWithOk(writer, []byte("{}"))
+}
+
 func (handler *AuthHandler) handleMe(writer http.ResponseWriter, request *http.Request) {
 	log.Trace().Msg("handleMe")
 
@@ -309,6 +324,7 @@ func main() {
 	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode)
 	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
 	meHandler := applyMiddleware(http.MethodGet, authHandler.handleMe)
+	logoutHandler := applyMiddleware(http.MethodPost, authHandler.handleLogout)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/health", handleHealth)
@@ -316,6 +332,7 @@ func main() {
 	mux.HandleFunc("/auth/get-code", getCodeHandler)
 	mux.HandleFunc("/auth/code-login", codeHandler)
 	mux.HandleFunc("/auth/me", meHandler)
+	mux.HandleFunc("/auth/logout", logoutHandler)
 
 	apiServer := &http.Server{
 		Addr:    httpPort,

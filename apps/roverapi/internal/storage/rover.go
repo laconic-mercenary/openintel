@@ -8,23 +8,24 @@ import (
 //
 // types
 
-type Intel struct {
-	Key         string
-	Geohash     string
-	Image       string
-	ImageKey    string
-	Description string
-	Latitude    float64
-	Longitude   float64
-	Accuracy    float64
-	Timestamp   int64
+type PrivateIntel struct {
+	Key                 string
+	Geohash             string
+	EmailHash           string
+	TimestampObfuscated int64
+	EncryptedPayload    string
+	ImageKey            string
+	// transient fields — populated during store, not persisted in table
+	Image     string
+	Timestamp int64
 }
 
-type IntelMetadataRepository interface {
+type PrivateIntelMetadataRepository interface {
 	Initialize(ctx context.Context) error
-	StoreIntelMetadata(ctx context.Context, intel Intel) error
-	GetIntelMetadata(ctx context.Context, geohash, key string) (Intel, error)
-	DeleteIntelMetadata(ctx context.Context, geohash, key string) error
+	StorePrivateIntelMetadata(ctx context.Context, intel PrivateIntel) (string, error)
+	GetPrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) (PrivateIntel, error)
+	DeletePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) error
+	ListPrivateIntelByGeohashes(ctx context.Context, emailHash string, geohashes []string) ([]PrivateIntel, error)
 }
 
 type IntelImageRepository interface {
