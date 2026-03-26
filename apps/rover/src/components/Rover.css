@@ -82,6 +82,55 @@
   border-color: yellow;
 }
 
+.rover-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #ffe8eb;
+  border-bottom: 1px solid #f5b5be;
+  color: #b00020;
+  font-size: 0.875rem;
+}
+
+.has-error .rover-menu-header {
+  top: 2.5rem;
+}
+
+.has-error .rover-menu {
+  top: calc(2.5rem + 3rem);
+}
+
+.rover-error-banner-dismiss {
+  background: none;
+  border: none;
+  color: #b00020;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .rover-menu-nav {
+    flex-direction: column;
+  }
+
+  .rover-menu-item {
+    width: 100%;
+  }
+
+  .rover-menu.is-open {
+    height: 12rem;
+  }
+}
+
 .geoloc-toggle {
     background-color: red;
     color: black;

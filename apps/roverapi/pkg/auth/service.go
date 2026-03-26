@@ -227,15 +227,15 @@ func (service *AuthService) formatMessage(loginLinkUrl string) string {
 
 func (service *AuthService) newAuthToken(email string) (string, error) {
 	log.Trace().Msg("newAuthToken")
-	salt := security.HashSha256(email) // deterministic 'salt'
-	pepper := config.EmailHashPepper() // configurable pepper - just in case, though catastrophic if updated irresponsibly
-	hashedEmail, hashErr := security.Hash(email)
+	salt := []byte(security.HashSha256(email))
+	pepper := config.EmailHashPepper()
+	hashedEmail, hashErr := security.Hash(email, salt)
 	if hashErr != nil {
 		log.Error().Err(hashErr).Msg("error hashing email")
 		return "", hashErr
 	}
-	authTokenPlainTxt := fmt.Sprintf(authTokenFmt, hashedEmail, salt, pepper)
-	return security.Hash(authTokenPlainTxt)
+	authTokenPlainTxt := fmt.Sprintf(authTokenFmt, hashedEmail, string(salt), pepper)
+	return security.Hash(authTokenPlainTxt, salt)
 }
 
 func (service *AuthService) newLoginLink(authToken string) (string, error) {

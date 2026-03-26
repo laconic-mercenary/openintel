@@ -1,19 +1,30 @@
 package geo
 
+import "math"
+
 //
 // consts and globals
 
 const (
 	geohashBase32    = "0123456789bcdefghjkmnpqrstuvwxyz"
-	GeohashPrecision = 4
+	GeohashPrecision = 5
+
+	geohash5LatStep = 0.03
+	geohash5LonStep = 0.03
+	maxBboxCells    = 2000
+
+	MinLat = -90.0
+	MaxLat = 90.0
+	MinLon = -180.0
+	MaxLon = 180.0
 )
 
 //
 // functions
 
 func Geohash(lat, lon float64) string {
-	minLon, maxLon := -180.0, 180.0
-	minLat, maxLat := -90.0, 90.0
+	minLon, maxLon := MinLon, MaxLon
+	minLat, maxLat := MinLat, MaxLat
 
 	result := make([]byte, GeohashPrecision)
 	bits := 0
@@ -50,4 +61,37 @@ func Geohash(lat, lon float64) string {
 		}
 	}
 	return string(result)
+}
+
+func BboxToGeohash5Cells(minLat, minLon, maxLat, maxLon float64) []string {
+	seen := make(map[string]bool)
+	var cells []string
+
+	addCell := func(lat, lon float64) bool {
+		cell := Geohash(lat, lon)
+		if !seen[cell] {
+			seen[cell] = true
+			cells = append(cells, cell)
+		}
+		return len(cells) < maxBboxCells
+	}
+
+	lat := minLat
+	for lat <= maxLat {
+		lon := minLon
+		for lon <= maxLon {
+			if !addCell(lat, lon) {
+				return cells
+			}
+			if lon >= maxLon {
+				break
+			}
+			lon = math.Min(lon+geohash5LonStep, maxLon)
+		}
+		if lat >= maxLat {
+			break
+		}
+		lat = math.Min(lat+geohash5LatStep, maxLat)
+	}
+	return cells
 }

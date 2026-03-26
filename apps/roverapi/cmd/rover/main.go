@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
+	"strconv"
 	"syscall"
 	gotime "time"
 
 	"github.com/rs/zerolog/log"
 	"openintel.jp/roverapi/internal/config"
+	"openintel.jp/roverapi/internal/geo"
+	"openintel.jp/roverapi/internal/security"
 	"openintel.jp/roverapi/internal/server"
 	"openintel.jp/roverapi/internal/storage"
 	"openintel.jp/roverapi/pkg/rover"
@@ -24,19 +27,18 @@ const (
 	httpPort             = ":8081"
 	shutdownDeadlineSecs = 30
 	maxRequestBodyBytes  = 10 << 20
+	maxGeohashQueryCells = 500
 )
 
 //
 // types
 
 type storeIntelRequest struct {
-	Key         string  `json:"key"`
-	Image       string  `json:"image"`
-	Description string  `json:"description"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
-	Accuracy    float64 `json:"accuracy"`
-	Timestamp   int64   `json:"timestamp"`
+	Key              string `json:"key"`
+	Geohash          string `json:"geohash"`
+	Image            string `json:"image"`
+	EncryptedPayload string `json:"encryptedPayload"`
+	Timestamp        int64  `json:"timestamp"`
 }
 
 type storeIntelResponse struct {
@@ -48,6 +50,14 @@ type getIntelImageURLResponse struct {
 	URL string `json:"url"`
 }
 
+type listIntelItem struct {
+	Key                 string `json:"key"`
+	Geohash             string `json:"geohash"`
+	TimestampObfuscated int64  `json:"timestampObfuscated"`
+	EncryptedPayload    string `json:"encryptedPayload"`
+	HasImage            bool   `json:"hasImage"`
+}
+
 //
 // functions
 
@@ -56,42 +66,51 @@ func handleHealth(writer http.ResponseWriter, request *http.Request) {
 	server.RespondWithOk(writer, []byte("ok"))
 }
 
-func handleStoreIntel(roverService *rover.RoverService) http.HandlerFunc {
+func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper, timestampPepper string) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleStoreIntel")
 		request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodyBytes)
 
+		email, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
 		var req storeIntelRequest
 		decodeErr := json.NewDecoder(request.Body).Decode(&req)
 		if decodeErr != nil {
+			log.Warn().Err(decodeErr).Msg("invalid request body")
 			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
 			return
 		}
 
-		image := req.Image
-		if commaIdx := strings.Index(image, ","); commaIdx != -1 {
-			image = image[commaIdx+1:]
+		emailHash := security.HmacSha256Hex(email, emailHashPepper)
+		hmacBytes := security.HmacSha256Bytes(email, timestampPepper)
+		obfuscatedTs := req.Timestamp + int64(binary.BigEndian.Uint32(hmacBytes[:4])) // TODO: 4 = first 4 bytes of HMAC → uint32 offset; per-user constant derived from email pepper
+
+		intel := storage.PrivateIntel{
+			Key:                 req.Key,
+			Geohash:             req.Geohash,
+			Image:               req.Image,
+			EncryptedPayload:    req.EncryptedPayload,
+			Timestamp:           req.Timestamp,
+			EmailHash:           emailHash,
+			TimestampObfuscated: obfuscatedTs,
 		}
 
-		intel := storage.Intel{
-			Key:         req.Key,
-			Image:       image,
-			Description: req.Description,
-			Latitude:    req.Latitude,
-			Longitude:   req.Longitude,
-			Accuracy:    req.Accuracy,
-			Timestamp:   req.Timestamp,
-		}
-
-		geohash, storeErr := roverService.StoreIntel(request.Context(), intel)
+		rowKey, storeErr := roverService.StorePrivateIntel(request.Context(), intel)
 		if storeErr != nil {
+			log.Error().Err(storeErr).Msg("failed to store intel")
 			server.RespondWithError(writer, http.StatusInternalServerError, storeErr, "failed to store intel")
 			return
 		}
 
-		resp := storeIntelResponse{Key: req.Key, Geohash: geohash}
+		resp := storeIntelResponse{Key: rowKey, Geohash: req.Geohash}
 		respBytes, marshalErr := json.Marshal(resp)
 		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal store intel response")
 			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
 			return
 		}
@@ -103,14 +122,16 @@ func handleGetIntelImageURL(roverService *rover.RoverService) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleGetIntelImageURL")
 		key := request.PathValue("key")
-		imageURL, urlErr := roverService.GetIntelImageURL(request.Context(), key)
+		imageURL, urlErr := roverService.GetPrivateIntelImageURL(request.Context(), key)
 		if urlErr != nil {
+			log.Error().Err(urlErr).Msg("failed to get intel image URL")
 			server.RespondWithError(writer, http.StatusInternalServerError, urlErr, "failed to get image URL")
 			return
 		}
 		resp := getIntelImageURLResponse{URL: imageURL}
 		respBytes, marshalErr := json.Marshal(resp)
 		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal image URL response")
 			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
 			return
 		}
@@ -118,17 +139,95 @@ func handleGetIntelImageURL(roverService *rover.RoverService) http.HandlerFunc {
 	}
 }
 
-func handleDeleteIntel(roverService *rover.RoverService) http.HandlerFunc {
+func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper string) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleDeleteIntel")
+
+		email, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
 		geohash := request.PathValue("geohash")
 		key := request.PathValue("key")
-		deleteErr := roverService.DeleteIntel(request.Context(), geohash, key)
+		emailHash := security.HmacSha256Hex(email, emailHashPepper)
+
+		deleteErr := roverService.DeletePrivateIntel(request.Context(), emailHash, geohash, key)
 		if deleteErr != nil {
+			log.Error().Err(deleteErr).Msg("failed to delete intel")
 			server.RespondWithError(writer, http.StatusInternalServerError, deleteErr, "failed to delete intel")
 			return
 		}
 		server.RespondWithOk(writer, []byte("{}"))
+	}
+}
+
+func handleListIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper string) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		log.Trace().Msg("handleListIntel")
+
+		email, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
+		minLat, minLatErr := strconv.ParseFloat(request.URL.Query().Get("minLat"), 64)
+		minLon, minLonErr := strconv.ParseFloat(request.URL.Query().Get("minLon"), 64)
+		maxLat, maxLatErr := strconv.ParseFloat(request.URL.Query().Get("maxLat"), 64)
+		maxLon, maxLonErr := strconv.ParseFloat(request.URL.Query().Get("maxLon"), 64)
+		if minLatErr != nil || minLonErr != nil || maxLatErr != nil || maxLonErr != nil {
+			log.Warn().
+				Str("minLat", request.URL.Query().Get("minLat")).
+				Str("minLon", request.URL.Query().Get("minLon")).
+				Str("maxLat", request.URL.Query().Get("maxLat")).
+				Str("maxLon", request.URL.Query().Get("maxLon")).
+				Msg("invalid bbox parameters")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, "invalid bbox parameters")
+			return
+		}
+		if minLat < geo.MinLat || maxLat > geo.MaxLat || minLon < geo.MinLon || maxLon > geo.MaxLon || minLat >= maxLat || minLon >= maxLon {
+			log.Error().Float64("minLat", minLat).Float64("maxLat", maxLat).Float64("minLon", minLon).Float64("maxLon", maxLon).Msg("bbox out of range")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, "invalid bbox parameters")
+			return
+		}
+
+		emailHash := security.HmacSha256Hex(email, emailHashPepper)
+		geohashes := geo.BboxToGeohash5Cells(minLat, minLon, maxLat, maxLon)
+		if len(geohashes) > maxGeohashQueryCells {
+			log.Error().Int("cells", len(geohashes)).Msg("bbox query area too large")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, "query area too large")
+			return
+		}
+
+		items, listErr := roverService.ListPrivateIntel(request.Context(), emailHash, geohashes)
+		if listErr != nil {
+			log.Error().Err(listErr).Msg("failed to list intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, listErr, "failed to list intel")
+			return
+		}
+
+		responseItems := make([]listIntelItem, len(items))
+		for i, item := range items {
+			responseItems[i] = listIntelItem{
+				Key:                 item.Key,
+				Geohash:             item.Geohash,
+				TimestampObfuscated: item.TimestampObfuscated,
+				EncryptedPayload:    item.EncryptedPayload,
+				HasImage:            item.ImageKey != "",
+			}
+		}
+
+		respBytes, marshalErr := json.Marshal(responseItems)
+		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal list intel response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			return
+		}
+		server.RespondWithOk(writer, respBytes)
 	}
 }
 
@@ -154,9 +253,10 @@ func main() {
 	log.Info().Msg("starting up...")
 	ctx := context.Background()
 
-	tableRepo, tableRepoErr := storage.NewAzureTableIntelRepository(
+	tableRepo, tableRepoErr := storage.NewAZPrivateIntelRepository(
 		config.RoverTableConnStr(),
-		config.RoverTableName(),
+		config.RoverPrivateIntelTableName(),
+		config.RoverTimestampSecretBase(),
 	)
 	if tableRepoErr != nil {
 		log.Fatal().Err(tableRepoErr).Msg("failed to create table repository")
@@ -184,7 +284,7 @@ func main() {
 	}
 
 	roverService, roverServiceErr := rover.NewRoverService(
-		rover.WithMetadataRepository(tableRepo),
+		rover.WithPrivateMetadataRepository(tableRepo),
 		rover.WithImageRepository(imageRepo),
 	)
 	if roverServiceErr != nil {
@@ -193,12 +293,15 @@ func main() {
 
 	jwtSecret := config.JWTSecret()
 	allowedOrigins := config.AllowedRoverOrigins()
+	emailHashPepper := config.RoverIntelEmailHashPepper()
+	timestampPepper := config.RoverTimestampPepper()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rover/health", handleHealth)
-	mux.HandleFunc("/rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithMethodCheck(http.MethodPost, handleStoreIntel(roverService)))))
-	mux.HandleFunc("GET /rover/intel/{geohash}/{key}/image-url", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleGetIntelImageURL(roverService))))
-	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleDeleteIntel(roverService))))
+	mux.HandleFunc("POST /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleStoreIntel(roverService, jwtSecret, emailHashPepper, timestampPepper))))
+	mux.HandleFunc("GET /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleListIntel(roverService, jwtSecret, emailHashPepper))))
+	mux.HandleFunc("GET /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleGetIntelImageURL(roverService))))
+	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleDeleteIntel(roverService, jwtSecret, emailHashPepper))))
 
 	apiServer := &http.Server{
 		Addr:    httpPort,

@@ -14,11 +14,9 @@ export const storeIntel = async (intelPoint) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             key: intelPoint.key,
-            image: intelPoint.b64image,
-            description: intelPoint.description,
-            latitude: intelPoint.latitude,
-            longitude: intelPoint.longitude,
-            accuracy: intelPoint.accuracy,
+            geohash: intelPoint.geohash,
+            encryptedPayload: intelPoint.encryptedPayload,
+            image: intelPoint.encryptedImage,
             timestamp: intelPoint.timestamp,
         }),
     });
@@ -28,13 +26,29 @@ export const storeIntel = async (intelPoint) => {
     return response.json();
 };
 
+export const listIntel = async (minLat, minLon, maxLat, maxLon) => {
+    const params = new URLSearchParams({ minLat, minLon, maxLat, maxLon });
+    const response = await fetch(`/rover/intel?${params}`);
+    if (!response.ok) {
+        throw new Error(`failed to list intel: ${response.status}`);
+    }
+    return response.json();
+};
+
 export const getIntelImageUrl = async (intelPoint) => {
-    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}/image-url`);
+    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`);
     if (!response.ok) {
         throw new Error(`failed to get intel image url: ${response.status}`);
     }
     const { url } = await response.json();
     return url;
+};
+
+export const logout = async () => {
+    const response = await fetch('/auth/logout', { method: 'POST' });
+    if (!response.ok) {
+        throw new Error(`failed to logout: ${response.status}`);
+    }
 };
 
 export const deleteIntel = async (intelPoint) => {

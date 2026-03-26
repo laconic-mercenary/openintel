@@ -2,7 +2,6 @@ package security
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -15,18 +14,17 @@ import (
 //
 // Functions
 
-func HashArgon2(plainText string) (string, error) {
-	log.Trace().Msg("HashArgon2")
+func HashSha256(plainText string) string {
+	hash := sha256.Sum256([]byte(plainText))
+	return string(hash[:])
+}
+
+func Hash(plainText string, salt []byte) (string, error) {
+	log.Trace().Msg("Hash")
 	memory := config.Argon2Memory()
 	iterations := config.Argon2Iterations()
 	parallism := config.Argon2Parallelism()
 	keyLength := config.Argon2KeyLength()
-
-	salt := make([]byte, config.Argon2SaltLength())
-	_, saltErr := rand.Read(salt)
-	if saltErr != nil {
-		return "", saltErr
-	}
 
 	hash := argon2.IDKey(
 		[]byte(plainText),
@@ -37,21 +35,17 @@ func HashArgon2(plainText string) (string, error) {
 		keyLength,
 	)
 
-	urlSafeToken := base64.URLEncoding.EncodeToString(hash)
-	return urlSafeToken, nil
-}
-
-func HashSha256(plainText string) string {
-	hash := sha256.Sum256([]byte(plainText))
-	return string(hash[:])
-}
-
-func Hash(plainText string) (string, error) {
-	return HashArgon2(plainText)
+	return base64.URLEncoding.EncodeToString(hash), nil
 }
 
 func HmacSha256Hex(data, key string) string {
 	mac := hmac.New(sha256.New, []byte(key))
 	mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func HmacSha256Bytes(data, key string) []byte {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(data))
+	return mac.Sum(nil)
 }

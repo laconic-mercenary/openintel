@@ -12,7 +12,7 @@ import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, zoomToPositionSignal }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, zoomToPositionSignal, zoomToNewIntelSignal }) {
     
     // Consts
     
@@ -23,6 +23,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const markerLayerID = "intel-markers";
     const markerHoverCursor = "pointer";
     const intelActionsPopupOffset = 10;
+    const debounceEndMills = 300;
+    const zoomInLevel = 16;
     const intelPopupTypes = {
         newActions: "new-actions",
         confirmedActions: "confirmed-actions",
@@ -133,6 +135,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const activeIntelActionPointKeyRef = useRef(null);
     const activeIntelActionPopupTypeRef = useRef(null);
     const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
+    const onBoundsChangeRef = useRef(onBoundsChange);
+    const boundsDebounceRef = useRef(null);
     const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
     const [reviewImageUrl, setReviewImageUrl] = useState(null);
     const reviewBlobUrlRef = useRef(null);
@@ -198,6 +202,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     }, [onDeleteConfirmedIntel]);
 
     useEffect(() => {
+        onBoundsChangeRef.current = onBoundsChange;
+    }, [onBoundsChange]);
+
+    useEffect(() => {
         if (!reviewIntelPointKey) {
             if (reviewBlobUrlRef.current) {
                 URL.revokeObjectURL(reviewBlobUrlRef.current);
@@ -226,7 +234,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 setReviewImageUrl(blobUrl);
             })
             .catch((error) => {
-                if (!cancelled) console.error("failed to load intel image:", error);
+                if (!cancelled) {
+                    console.error("failed to load intel image:", error);
+                    onError?.("Failed to load image — please try again.");
+                }
             });
         return () => { cancelled = true; };
     }, [reviewIntelPointKey]);
@@ -251,6 +262,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         }
         if (!position) {
             console.warn("position is not ready");
+            onError?.("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
             return;
         }
         sendMapToPosition(position.coords);
@@ -262,10 +274,26 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             return;
         }
         renderIntelPoints(intelPoints);
-        sendMapToLatest(intelPoints);
     }, [intelPoints]);
 
+    useEffect(() => {
+        if (zoomToNewIntelSignal === 0) return;
+        sendMapToLatest(intelPointsRef.current);
+    }, [zoomToNewIntelSignal]);
+
     // Methods
+
+    const fireBoundsChange = (map) => {
+        if (!map) return;
+        const bounds = map.getBounds();
+        onBoundsChangeRef.current?.(
+            bounds.getSouth(),
+            bounds.getWest(),
+            bounds.getNorth(),
+            bounds.getEast(),
+            map.getZoom(),
+        );
+    };
 
     const initializeMap = () => {
         const map = new MLMap({
@@ -279,12 +307,19 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             loadMarkerImages();
             applyMarkerHoverCursor();
             applyMarkerClickEvent();
+            fireBoundsChange(map);
+        });
+
+        map.on("moveend", () => {
+            clearTimeout(boundsDebounceRef.current);
+            boundsDebounceRef.current = setTimeout(() => fireBoundsChange(roverMapRef.current), debounceEndMills);
         });
 
         roverMapRef.current = map;
     };
 
     const cleanupMap = () => {
+        clearTimeout(boundsDebounceRef.current);
         removeIntelActionsPopup();
         removeMarkerClickEvent();
         removeMarkerHoverCursor();
@@ -421,7 +456,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             className: "intel-point-actions-popup",
             closeButton: false,
             closeOnClick: false,
-            closeOnMove: true,
+            closeOnMove: false,
             anchor: "top",
             offset: intelActionsPopupOffset,
         })
@@ -463,7 +498,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             className: "intel-point-actions-popup",
             closeButton: false,
             closeOnClick: false,
-            closeOnMove: true,
+            closeOnMove: false,
             anchor: "top",
             offset: intelActionsPopupOffset,
         })
@@ -505,7 +540,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             className: "intel-point-actions-popup",
             closeButton: false,
             closeOnClick: false,
-            closeOnMove: true,
+            closeOnMove: false,
             anchor: "top",
             offset: intelActionsPopupOffset,
         })
@@ -526,7 +561,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         activeIntelActionPopupTypeRef.current = intelPopupTypes.confirmedDeleteConfirm;
     };
 
-    const onCommunityIntelClick = (intelPoint) => {
+    const onCommunityIntelClick = (_intelPoint) => {
 
     };
 
@@ -758,11 +793,9 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     };
 
     const sendMapToLatest = (points) => {
-        if (points.length === 0) {
-            return;
-        }
-
-        const lastPoint = points.at(-1);
+        const sessionPoints = points.filter((p) => !p.fromServer);
+        if (sessionPoints.length === 0) return;
+        const lastPoint = sessionPoints.at(-1);
         sendMapToPosition({
             longitude: lastPoint.longitude,
             latitude: lastPoint.latitude,
@@ -780,7 +813,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 coords.longitude,
                 coords.latitude,
             ],
-            zoom: 14,
+            zoom: zoomInLevel,
         });
     };
 
