@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>openintel</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="map-stage">
+        <div class="map-layer" id="map-a"></div>
+        <div class="map-layer" id="map-b"></div>
+    </div>
+    <div id="vignette"></div>
+    <div id="menu" aria-hidden="true">
+        <img id="logo" src="logo.png" alt="openintel">
+        <nav id="menu-nav">
+            <div class="menu-item">
+                <button class="menu-btn" type="button" data-target="pane-rover">ROVER</button>
+                <div class="menu-pane" id="pane-rover" aria-hidden="true">
+                    <p>Make secure, private, personal intel logs. Or contribute to the openintel community.</p>
+                    <a class="pane-link" href="https://rover.openintel.to">Enter →</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn" type="button" data-target="pane-about">ABOUT</button>
+                <div class="menu-pane" id="pane-about" aria-hidden="true">
+                    <p>openintel was designed with privacy in mind. Your data is encrypted client-side before it ever reaches a server — not even we can read what you store.</p>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn" type="button" data-target="pane-code">CODE</button>
+                <div class="menu-pane" id="pane-code" aria-hidden="true">
+                    <!-- TODO: add source code repository link -->
+                </div>
+            </div>
+        </nav>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
