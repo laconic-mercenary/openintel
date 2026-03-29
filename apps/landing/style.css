@@ -1,0 +1,153 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --parchment: #e8d5b0;
+    --parchment-dim: #c4a87a;
+    --ink: #1a1008;
+    --menu-bg: rgba(8, 5, 1, 0.78);
+    --border: rgba(200, 170, 100, 0.25);
+    --fade-slow: 1.2s ease;
+    --fade-mid: 0.35s ease;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #080501;
+}
+
+/* Map */
+
+#map-stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+}
+
+.map-layer {
+    position: absolute;
+    top: -25%;
+    left: -25%;
+    width: 150%;
+    height: 150%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    will-change: transform, opacity;
+    transition: opacity var(--fade-slow);
+}
+
+.map-layer.active {
+    opacity: 1;
+}
+
+/* Vignette */
+
+#vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 25%, rgba(4, 2, 0, 0.85) 100%);
+    pointer-events: none;
+}
+
+/* Menu */
+
+#menu {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--fade-mid);
+    pointer-events: none;
+}
+
+#menu.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#logo {
+    display: block;
+    width: 12rem;
+    margin: 0 auto 0.6rem;
+}
+
+#menu-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 300px;
+}
+
+.menu-btn {
+    width: 100%;
+    background: var(--menu-bg);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: var(--parchment-dim);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.38em;
+    padding: 0.9rem 2rem;
+    cursor: pointer;
+    text-align: center;
+    transition: background var(--fade-mid), color var(--fade-mid);
+}
+
+.menu-item:last-child .menu-btn {
+    border-bottom: 1px solid var(--border);
+}
+
+.menu-btn:hover,
+.menu-btn.open {
+    background: rgba(25, 15, 4, 0.9);
+    color: var(--parchment);
+}
+
+.menu-pane {
+    overflow: hidden;
+    max-height: 0;
+    background: rgba(8, 5, 1, 0.85);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 0 1.5rem;
+    transition: max-height var(--fade-mid), padding var(--fade-mid);
+}
+
+.menu-item:last-child .menu-pane {
+    border-bottom: 1px solid var(--border);
+}
+
+.menu-pane.open {
+    max-height: 200px;
+    padding: 1rem 1.5rem;
+}
+
+.menu-pane p {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.82rem;
+    color: rgba(232, 213, 176, 0.7);
+    line-height: 1.75;
+    margin-bottom: 0.75rem;
+}
+
+.pane-link {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.82rem;
+    color: var(--parchment-dim);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    transition: color var(--fade-mid);
+}
+
+.pane-link:hover {
+    color: var(--parchment);
+}
