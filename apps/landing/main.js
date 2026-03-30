@@ -1,14 +1,15 @@
 // consts
 
 const panSpeed = 14;
-const panLimit = 160;
 const fadeDuration = 1200;
 
+const panLimit = Math.min(Math.min(window.innerWidth, window.innerHeight) * 0.22, 160);
+
 const maps = [
-    { url: 'maps/map1.jpg', startX:  100, startY: -100, dir: { x: -1,   y:  1   } },
-    { url: 'maps/map2.jpg', startX: -100, startY:  100, dir: { x:  1,   y: -1   } },
-    { url: 'maps/map3.jpg', startX: -100, startY:    0, dir: { x:  1,   y:  0.1 } },
-    { url: 'maps/map4.jpg', startX:    0, startY: -100, dir: { x:  0,   y:  1   } },
+    { url: 'maps/map1.jpg', startX:  panLimit, startY: -panLimit, dir: { x: -1,   y:  1   } },
+    { url: 'maps/map2.jpg', startX: -panLimit, startY:  panLimit, dir: { x:  1,   y: -1   } },
+    { url: 'maps/map3.jpg', startX: -panLimit, startY:         0, dir: { x:  1,   y:  0.1 } },
+    { url: 'maps/map4.jpg', startX:         0, startY: -panLimit, dir: { x:  0,   y:  1   } },
 ];
 
 // state

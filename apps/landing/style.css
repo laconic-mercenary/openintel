@@ -65,8 +65,16 @@ html, body {
     align-items: center;
     justify-content: center;
     opacity: 0;
+    overflow-y: auto;
     transition: opacity var(--fade-mid);
     pointer-events: none;
+}
+
+@media (max-height: 500px) {
+    #menu {
+        justify-content: flex-start;
+        padding: 1.5rem 0;
+    }
 }
 
 #menu.visible {
@@ -77,7 +85,19 @@ html, body {
 #logo {
     display: block;
     width: 12rem;
-    margin: 0 auto 0.6rem;
+    margin: 0 auto 0.3rem;
+}
+
+#menu-header {
+    background: rgba(4, 2, 0, 0.92);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: rgba(196, 168, 122, 0.4);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.45em;
+    padding: 0.45rem 2rem;
+    text-align: center;
 }
 
 #menu-nav {
@@ -106,6 +126,11 @@ html, body {
     border-bottom: 1px solid var(--border);
 }
 
+.menu-btn-link {
+    display: block;
+    text-decoration: none;
+}
+
 .menu-btn:hover,
 .menu-btn.open {
     background: rgba(25, 15, 4, 0.9);
@@ -129,6 +154,7 @@ html, body {
 .menu-pane.open {
     max-height: 200px;
     padding: 1rem 1.5rem;
+    overflow-y: auto;
 }
 
 .menu-pane p {
@@ -150,4 +176,11 @@ html, body {
 
 .pane-link:hover {
     color: var(--parchment);
+}
+
+.pane-warning {
+    margin-top: 0.6rem;
+    font-size: 0.72rem;
+    color: rgba(196, 168, 122, 0.45);
+    line-height: 1.5;
 }
