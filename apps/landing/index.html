@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>openintel</title>
+    <meta name="description" content="openintel — the world, as you find it. Private, encrypted geolocated notes and photos.">
+    <meta name="theme-color" content="#080501">
+    <meta property="og:title" content="openintel">
+    <meta property="og:description" content="the world, as you find it.">
+    <meta property="og:image" content="https://openintel.to/logo.png">
+    <title>openintel — the world, as you find it</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -16,24 +21,28 @@
     <div id="menu" aria-hidden="true">
         <img id="logo" src="logo.png" alt="openintel">
         <nav id="menu-nav">
+            <div id="menu-header">OPENINTEL</div>
             <div class="menu-item">
-                <button class="menu-btn" type="button" data-target="pane-rover">ROVER</button>
-                <div class="menu-pane" id="pane-rover" aria-hidden="true">
-                    <p>Make secure, private, personal intel logs. Or contribute to the openintel community.</p>
-                    <a class="pane-link" href="https://rover.openintel.to">Enter →</a>
+                <button class="menu-btn" type="button" data-target="pane-start">GET STARTED</button>
+                <div class="menu-pane" id="pane-start" aria-hidden="true">
+                    <a class="pane-link" href="https://rover.openintel.to">Launch Rover →</a>
+                    <p class="pane-warning">⚠ First time? Keep your password safe — we don't store it.</p>
                 </div>
             </div>
             <div class="menu-item">
-                <button class="menu-btn" type="button" data-target="pane-about">ABOUT</button>
-                <div class="menu-pane" id="pane-about" aria-hidden="true">
-                    <p>openintel was designed with privacy in mind. Your data is encrypted client-side before it ever reaches a server — not even we can read what you store.</p>
+                <button class="menu-btn" type="button" data-target="pane-howto">HOW TO USE</button>
+                <div class="menu-pane" id="pane-howto" aria-hidden="true">
+                    <p>1. Log in with a passwordless email code.</p>
+                    <p>2. Set an encryption password — store it somewhere safe.</p>
+                    <p>3. Enable geolocation on your device.</p>
+                    <p>4. Make geolocated photos and notes. Your data is encrypted on your device before upload — openintel cannot read it.</p>
                 </div>
             </div>
             <div class="menu-item">
-                <button class="menu-btn" type="button" data-target="pane-code">CODE</button>
-                <div class="menu-pane" id="pane-code" aria-hidden="true">
-                    <!-- TODO: add source code repository link -->
-                </div>
+                <a class="menu-btn menu-btn-link" href="terms.html">TERMS OF USE</a>
+            </div>
+            <div class="menu-item">
+                <a class="menu-btn menu-btn-link" href="privacy.html">PRIVACY</a>
             </div>
         </nav>
     </div>
