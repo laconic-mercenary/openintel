@@ -25,7 +25,7 @@ var (
 )
 
 func RoverTableConnStr() string {
-	return getRequiredEnv(envRoverTableConnStr)
+	return getSecretEnv(envRoverTableConnStr)
 }
 
 func RoverPrivateIntelTableName() string {
@@ -33,11 +33,11 @@ func RoverPrivateIntelTableName() string {
 }
 
 func RoverIntelEmailHashPepper() string {
-	return getRequiredEnv(envRoverIntelEmailHashPepper)
+	return getSecretEnv(envRoverIntelEmailHashPepper)
 }
 
 func RoverTimestampPepper() string {
-	return getRequiredEnv(envRoverTimestampPepper)
+	return getSecretEnv(envRoverTimestampPepper)
 }
 
 func RoverTimestampSecretBase() int64 {
@@ -58,11 +58,11 @@ func RoverStoreBucket() string {
 }
 
 func RoverStoreAccessKey() string {
-	return getRequiredEnv(envRoverStoreAccessKey)
+	return getSecretEnv(envRoverStoreAccessKey)
 }
 
 func RoverStoreSecretKey() string {
-	return getRequiredEnv(envRoverStoreSecretKey)
+	return getSecretEnv(envRoverStoreSecretKey)
 }
 
 func RoverStorePublicEndpoint() string {

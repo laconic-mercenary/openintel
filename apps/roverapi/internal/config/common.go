@@ -13,6 +13,7 @@ import (
 var (
 	envVarFmt        = "%s_%s"
 	envAuthJWTSecret = fmt.Sprintf(envVarFmt, authEnvPrefix, "JWT_SECRET")
+	envKeyVaultURL   = "ROVERAPI_KEYVAULT_URL"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 // functions
 
 func JWTSecret() []byte {
-	secret := []byte(getRequiredEnv(envAuthJWTSecret))
+	secret := []byte(getSecretEnv(envAuthJWTSecret))
 	if len(secret) < jwtSecretMinLen {
 		log.Fatal().
 			Int("minLength", jwtSecretMinLen).

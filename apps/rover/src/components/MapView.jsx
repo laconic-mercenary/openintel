@@ -46,9 +46,9 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         sources: {
             osm: {
                 type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                tiles: ["https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}.png"],
                 tileSize: rasterTileSize,
-                attribution: "(c) OpenStreetMap Contributors",
+                attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             },
             [userSourceID]: {
                 type: "geojson",
@@ -262,7 +262,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         }
         if (!position) {
             console.warn("position is not ready");
-            onError?.("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
+            onError?.("Check geolocation is enabled — high precision locations may take a few seconds.");
             return;
         }
         sendMapToPosition(position.coords);

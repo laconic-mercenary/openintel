@@ -92,7 +92,7 @@ func AllowedAuthOrigins() []string {
 }
 
 func AuthTableConnStr() string {
-	return getRequiredEnv(envAuthTableConnStr)
+	return getSecretEnv(envAuthTableConnStr)
 }
 
 func AuthTableName() string {
@@ -100,11 +100,11 @@ func AuthTableName() string {
 }
 
 func EmailHashPepper() string {
-	return getRequiredEnv(envAuthEmailHashPepper)
+	return getSecretEnv(envAuthEmailHashPepper)
 }
 
 func EncryptionSaltPepper() string {
-	return getRequiredEnv(envAuthEncryptionSaltPepper)
+	return getSecretEnv(envAuthEncryptionSaltPepper)
 }
 
 func LoginCodeSenderEmail() string {

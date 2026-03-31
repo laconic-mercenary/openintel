@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "extensions": {
+    "http": {
+      "routePrefix": ""
+    }
+  },
+  "customHandler": {
+    "description": {
+      "defaultExecutablePath": "roverapi",
+      "workingDirectory": "",
+      "arguments": []
+    },
+    "enableForwardingHttpRequest": true
+  }
+}
