@@ -42,10 +42,12 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
         <div className="enc-setup-overlay">
             <div className="enc-setup-panel">
                 <h2>Encryption Password</h2>
-                <p className="enc-setup-warning">
+                <p className="enc-setup-info">
                     This password encrypts your intel on this device. It is never sent to the server.
-                    <strong> There is no recovery if you forget it.</strong>
                 </p>
+                <div className="enc-setup-warning">
+                    ⚠ If you lose this password, your data cannot be recovered by anyone — including us. Store it somewhere safe before continuing.
+                </div>
                 <form onSubmit={onSubmit}>
                     <input
                         type="password"

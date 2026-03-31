@@ -138,7 +138,7 @@ export default function Login() {
     return (
         <div className="login-container">
             <div className="login-card">
-                <h1 className="login-title">Rover Title</h1>
+                <h1 className="login-title">Rover Login</h1>
                 
                 <div className="login-steps">
                     <div className={`login-step ${step === loginStepEmail ? "is-active" : ""}`}>
@@ -151,11 +151,13 @@ export default function Login() {
                                 required
                                 className="login-input"
                             />
-                            
                             <button type="submit" className="login-button">
                                 Send Code
                             </button>
                         </form>
+                        <p className="login-consent">
+                            By continuing, you agree to our <a className="login-consent-link" href="https://www.openintel.to/terms.html" target="_blank" rel="noreferrer">Terms of Use</a> and <a className="login-consent-link" href="https://www.openintel.to/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.
+                        </p>
                     </div>
 
                     <div className={`login-step login-error ${step === loginStepError ? "is-active" : ""}`}>

@@ -45,6 +45,7 @@ export default function Rover() {
     const navigate = useNavigate();
     const positionRef = useRef(position);
     const cryptoKeyRef = useRef(cryptoKey);
+    const decryptionWarningShownRef = useRef(false);
 
     // Effects
 
@@ -105,7 +106,7 @@ export default function Rover() {
 
     const onPositionError = (error) => {
         console.error(error);
-        setErrorMessage("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
+        setErrorMessage("Check geolocation is enabled — high precision locations may take a few seconds.");
     };
 
     const onIntelReady = (description, b64Image) => {
@@ -132,7 +133,7 @@ export default function Rover() {
             },
             (error) => {
                 console.error(error);
-                setErrorMessage("Check geolocation is enabled or wait a moment — high precision locations may take a moment.");
+                setErrorMessage("Check geolocation is enabled — high precision locations may take a few seconds.");
             },
             geolocationOptions,
         );
@@ -210,7 +211,7 @@ export default function Rover() {
         if (zoom < minIntelQueryZoom) return;
         try {
             const items = await listIntel(minLat, minLon, maxLat, maxLon);
-            const decrypted = await Promise.all(items.map(async (item) => {
+            const results = await Promise.allSettled(items.map(async (item) => {
                 const plaintext = await decryptText(key, item.encryptedPayload);
                 const { lat, lon, accuracy, description, timestamp } = JSON.parse(plaintext);
                 return {
@@ -227,6 +228,16 @@ export default function Rover() {
                     fromServer: true,
                 };
             }));
+
+            const decrypted = results
+                .filter((r) => r.status === 'fulfilled')
+                .map((r) => r.value);
+
+            const failedCount = results.filter((r) => r.status === 'rejected').length;
+            if (failedCount > 0 && !decryptionWarningShownRef.current) {
+                decryptionWarningShownRef.current = true;
+                setErrorMessage("Some intel could not be decrypted with the current password — it may have been stored with a different one.");
+            }
             setIntelPoints((previous) => {
                 const currentCells = new Set(bboxToGeohash5Cells(minLat, minLon, maxLat, maxLon));
                 const inSession = previous.filter((p) => !p.fromServer);

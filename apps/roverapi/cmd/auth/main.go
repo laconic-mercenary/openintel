@@ -28,8 +28,15 @@ const (
 	emailFormParam       = "email"
 	cookieTokenKey       = "auth_token"
 	shutdownDeadlineSecs = 30
-	httpPort             = ":8080"
+	httpPortDefault      = ":8080"
 )
+
+func listenAddr() string {
+	if port := os.Getenv("FUNCTIONS_CUSTOMHANDLER_PORT"); port != "" {
+		return ":" + port
+	}
+	return httpPortDefault
+}
 
 //
 // types
@@ -335,7 +342,7 @@ func main() {
 	mux.HandleFunc("/auth/logout", logoutHandler)
 
 	apiServer := &http.Server{
-		Addr:    httpPort,
+		Addr:    listenAddr(),
 		Handler: mux,
 	}
 

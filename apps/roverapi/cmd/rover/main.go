@@ -24,11 +24,18 @@ import (
 // consts and globals
 
 const (
-	httpPort             = ":8081"
+	httpPortDefault      = ":8081"
 	shutdownDeadlineSecs = 30
 	maxRequestBodyBytes  = 10 << 20
 	maxGeohashQueryCells = 500
 )
+
+func listenAddr() string {
+	if port := os.Getenv("FUNCTIONS_CUSTOMHANDLER_PORT"); port != "" {
+		return ":" + port
+	}
+	return httpPortDefault
+}
 
 //
 // types
@@ -304,7 +311,7 @@ func main() {
 	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleDeleteIntel(roverService, jwtSecret, emailHashPepper))))
 
 	apiServer := &http.Server{
-		Addr:    httpPort,
+		Addr:    listenAddr(),
 		Handler: mux,
 	}
 

@@ -74,3 +74,21 @@
 .login-button:hover {
   background: #1f1f1f;
 }
+
+.login-consent {
+  margin-top: 1rem;
+  font-size: 0.72rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.6;
+}
+
+.login-consent-link {
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.login-consent-link:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
