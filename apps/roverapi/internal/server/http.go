@@ -119,6 +119,14 @@ func WithCookieAuth(jwtSecret []byte, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// Request size limit middleware
+func WithRequestSizeLimit(maxBytes int64, next http.HandlerFunc) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		request.Body = http.MaxBytesReader(writer, request.Body, maxBytes)
+		next(writer, request)
+	}
+}
+
 // Origin check middleware
 func WithOriginCheck(allowedOrigins []string, next http.HandlerFunc) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {

@@ -30,6 +30,7 @@ const (
 	cookieTokenKey       = "auth_token"
 	shutdownDeadlineSecs = 30
 	httpPortDefault      = ":8080"
+	maxRequestBodyBytes  = 4096
 )
 
 func listenAddr() string {
@@ -304,7 +305,7 @@ func newAuthHandler() *AuthHandler {
 }
 
 func applyMiddleware(allowedMethod string, handler http.HandlerFunc) http.HandlerFunc {
-	return server.WithOriginCheck(config.AllowedAuthOrigins(), server.WithMethodCheck(allowedMethod, handler))
+	return server.WithOriginCheck(config.AllowedAuthOrigins(), server.WithMethodCheck(allowedMethod, server.WithRequestSizeLimit(maxRequestBodyBytes, handler)))
 }
 
 func awaitShutdown(apiServer *http.Server) {

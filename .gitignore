@@ -1,0 +1,13 @@
+# Go binaries
+*.app
+apps/roverapi/deploy/authapi/authapi
+apps/roverapi/deploy/roverapi/roverapi
+
+# Node
+node_modules/
+dist/
+.env
+.env.local
+
+# OS
+.DS_Store
