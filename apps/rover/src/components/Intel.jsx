@@ -44,13 +44,11 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
 
     useEffect(() => {
         if (!("mediaDevices" in navigator)) {
-            invokeIntelError(new Error("media api not supported on this browser"),
-                                        "This browser is not supported.");
+            setUserError("This browser is not supported.");
             return;
         }
         if (!("getUserMedia" in navigator.mediaDevices)) {
-            invokeIntelError(new Error("camera is not supported on this browser"),
-                                        "Cameras are not supported in this browser.");
+            setUserError("Cameras are not supported in this browser.");
             return;
         }
 
@@ -68,7 +66,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                             })
                             .catch((error) => {
                                 console.error(`camera is not available: ${error}`);
-                                invokeIntelError(error, "No camera detected - please check your camera device.");
+                                setUserError("No camera detected - please check your camera device.");
                             });
         return () => {
             isMounted = false;

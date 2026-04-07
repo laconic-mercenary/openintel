@@ -12,11 +12,13 @@ export default function Login() {
     const loginStepWait = "wait";
     const loginStepCode = "code";
     const loginStepError = "error";
+    const loginStepConflict = "conflict";
     const waitPeriodMillis = 11000;
     const requestTimeoutMillis = 10000;
     const httpStatus = {
         UNAUTHORIZED: 401,
         NOT_FOUND: 404,
+        CONFLICT: 409,
     };
 
     // State
@@ -104,8 +106,12 @@ export default function Login() {
             const result = await requestCodeForEmail();
             if (!result.ok) {
                 clearTimeout(timerHandle.current);
-                console.error(result.statusText);
-                setStep(loginStepError);
+                if (result.status === httpStatus.CONFLICT) {
+                    setStep(loginStepConflict);
+                } else {
+                    console.error(result.statusText);
+                    setStep(loginStepError);
+                }
                 return;
             }
         } catch (err) {
