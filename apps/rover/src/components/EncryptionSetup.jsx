@@ -43,10 +43,10 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
             <div className="enc-setup-panel">
                 <h2>Encryption Password</h2>
                 <p className="enc-setup-info">
-                    This password encrypts your intel on this device. It is never sent to the server.
+                    Enter your encryption password to access your intel. If this is your first time, choose a password now — it is never sent to the server.
                 </p>
                 <div className="enc-setup-warning">
-                    ⚠ If you lose this password, your data cannot be recovered by anyone — including us. Store it somewhere safe before continuing.
+                    ⚠ This password cannot be recovered by anyone, including us.
                 </div>
                 <form onSubmit={onSubmit}>
                     <input
@@ -54,7 +54,7 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Password"
-                        autoComplete="new-password"
+                        autoComplete="current-password"
                         autoFocus
                     />
                     <ul className="enc-setup-requirements">
