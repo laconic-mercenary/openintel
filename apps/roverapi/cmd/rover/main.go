@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	gotime "time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"openintel.jp/roverapi/internal/config"
 	"openintel.jp/roverapi/internal/geo"
@@ -70,7 +72,7 @@ type listIntelItem struct {
 
 func handleHealth(writer http.ResponseWriter, request *http.Request) {
 	log.Trace().Msg("handleHealth")
-	server.RespondWithOk(writer, []byte("ok"))
+	server.RespondWithOk(writer, []byte(`{"status":"ok"}`))
 }
 
 func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper, timestampPepper string) http.HandlerFunc {
@@ -256,7 +258,13 @@ func awaitShutdown(apiServer *http.Server) {
 	log.Info().Msg("server stopped")
 }
 
+func configureLogging() {
+	log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
+}
+
 func main() {
+	fmt.Fprintln(os.Stdout, "roverapi: process started")
+	configureLogging()
 	log.Info().Msg("starting up...")
 	ctx := context.Background()
 

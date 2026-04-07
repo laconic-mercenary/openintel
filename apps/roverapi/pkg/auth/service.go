@@ -29,6 +29,7 @@ var (
 	ErrInvalidAuthToken        = errors.New("invalid auth token provided")
 	ErrEmailAndCodeRequired    = errors.New("email and code are required")
 	ErrRateLimiterRequired     = errors.New("rate limiter is required")
+	ErrLoginCodeAlreadySent    = errors.New("a login code has already been sent")
 )
 
 const (
@@ -77,6 +78,22 @@ func (service *AuthService) SendLoginCode(email string) error {
 	if authTokenErr != nil {
 		log.Error().Err(authTokenErr).Msg("error creating auth token")
 		return authTokenErr
+	}
+
+	existing, exists, fetchErr := service.authTokenQuery.GetAuthToken(authToken)
+	if fetchErr != nil {
+		log.Error().Err(fetchErr).Msg("error checking for existing auth token")
+		return fetchErr
+	}
+	if exists {
+		if time.UnixTimestampMs() < existing.ExpiryTimestamp {
+			log.Warn().Msg("login code already sent and not yet expired")
+			return ErrLoginCodeAlreadySent
+		}
+		if deleteErr := service.authTokens.DeleteAuthToken(authToken); deleteErr != nil {
+			log.Error().Err(deleteErr).Msg("error deleting expired auth token before reissue")
+			return deleteErr
+		}
 	}
 
 	authCode, authCodeErr := service.newAuthCode()
@@ -157,6 +174,9 @@ func (service *AuthService) VerifyLoginCode(email string, userProvidedCode strin
 		// check expiry first before the Enabled check. We should see disabled logs
 		// for a period of time and then the expiry - if everything is working correctly
 		log.Warn().Msg("authToken has expired")
+		if deleteErr := service.authTokens.DeleteAuthToken(authToken); deleteErr != nil {
+			log.Error().Err(deleteErr).Msg("error deleting expired auth token")
+		}
 		return false, nil
 	}
 	if !token.Enabled {
@@ -239,12 +259,12 @@ func (service *AuthService) newAuthToken(email string) (string, error) {
 }
 
 func (service *AuthService) newLoginLink(authToken string) (string, error) {
-	baseUrl, urlParseErr := url.Parse(config.EmailLoginDomain())
+	baseUrl, urlParseErr := url.Parse(config.LoginRedirectURL())
 	if urlParseErr != nil {
-		log.Error().Err(urlParseErr).Msg("error parsing email login domain")
+		log.Error().Err(urlParseErr).Msg("error parsing login redirect url")
 		return "", urlParseErr
 	}
-	baseUrl.Path = "/auth/get-code" // TODO hardcoded context
+	baseUrl.Path = "/auth/get-code"
 	params := url.Values{}
 	params.Add(server.AuthTokenGetParam(), authToken)
 	baseUrl.RawQuery = params.Encode()

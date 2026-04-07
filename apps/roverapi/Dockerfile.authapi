@@ -1,9 +1,5 @@
 FROM golang:1.26-alpine AS builder
 
-LABEL org.opencontainers.image.source="https://github.com/laconic-mercenary/openintel"
-LABEL org.opencontainers.image.description="openintel-authapi"
-LABEL org.opencontainers.image.licenses="UNLICENSED"
-
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -12,9 +8,13 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o authapi.app ./cmd/auth
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -a -installsuffix cgo -o authapi.app ./cmd/auth
 
-FROM alpine:latest
+FROM alpine:3.21
+
+LABEL org.opencontainers.image.source="https://github.com/laconic-mercenary/openintel"
+LABEL org.opencontainers.image.description="openintel-authapi"
+LABEL org.opencontainers.image.licenses="UNLICENSED"
 
 RUN addgroup -g 1001 -S authapi && \
     adduser -u 1001 -S authapi -G authapi

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	gotime "time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"openintel.jp/roverapi/internal/config"
 	"openintel.jp/roverapi/internal/logging"
@@ -241,9 +242,13 @@ func (handler *AuthHandler) handleEmailLink(writer http.ResponseWriter, request 
 	}
 
 	if sendErr := handler.authService.SendLoginCode(parsedEmail); sendErr != nil {
+		if errors.Is(sendErr, auth.ErrLoginCodeAlreadySent) {
+			server.RespondWithError(writer, http.StatusConflict, sendErr, "login code already sent")
+			return
+		}
 		server.RespondWithError(writer, http.StatusServiceUnavailable, sendErr, "error sending login link to email")
 	} else {
-		server.RespondWithOk(writer, []byte("ok"))
+		server.RespondWithOk(writer, []byte(`{"status":"ok"}`))
 	}
 }
 
@@ -252,7 +257,7 @@ func (handler *AuthHandler) handleEmailLink(writer http.ResponseWriter, request 
 
 func handleHealth(writer http.ResponseWriter, request *http.Request) {
 	log.Trace().Msg("handleHealth")
-	server.RespondWithOk(writer, []byte("ok"))
+	server.RespondWithOk(writer, []byte(`{"status":"ok"}`))
 }
 
 func newAuthHandler() *AuthHandler {
@@ -270,7 +275,7 @@ func newAuthHandler() *AuthHandler {
 	}
 
 	blockList := security.NewOSIEmailService()
-	emailer := server.NewEmptyEmailService()
+	emailer := server.NewResendEmailService(config.EmailAPIKey())
 	limiter, limiterErr := server.NewRateLimiter(
 		config.AuthRateLimiterAttempts(),
 		config.AuthRateLimiterWindow(),
@@ -320,9 +325,17 @@ func awaitShutdown(apiServer *http.Server) {
 }
 
 //
+// functions
+
+func configureLogging() {
+	log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
+}
+
+//
 // Main
 
 func main() {
+	configureLogging()
 	log.Info().Msg("starting up...")
 
 	authHandler := newAuthHandler()

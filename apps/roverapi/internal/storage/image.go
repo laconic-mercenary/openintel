@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/rs/zerolog/log"
 )
 
@@ -58,18 +56,6 @@ func NewS3IntelImageRepository(internalEndpoint, publicEndpoint, bucket, accessK
 
 func (r *S3IntelImageRepository) Initialize(ctx context.Context) error {
 	log.Trace().Msg("Initialize")
-	_, createErr := r.client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: &r.bucketName,
-	})
-	if createErr != nil {
-		var exists *types.BucketAlreadyExists
-		var owned *types.BucketAlreadyOwnedByYou
-		if errors.As(createErr, &exists) || errors.As(createErr, &owned) {
-			return nil
-		}
-		log.Error().Err(createErr).Str("bucket", r.bucketName).Msg("error creating bucket")
-		return createErr
-	}
 	return nil
 }
 

@@ -14,11 +14,11 @@ import (
 var (
 	envAuthTableConnStr               = fmt.Sprintf(envVarFmt, authEnvPrefix, "TABLE_CONN_STR")
 	envAuthTableName                  = fmt.Sprintf(envVarFmt, authEnvPrefix, "TABLE_NAME")
+	envAuthEmailAPIKey                = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_API_KEY")
 	envAuthEmailHashPepper            = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_HASH_PEPPER")
 	envAuthEncryptionSaltPepper       = fmt.Sprintf(envVarFmt, authEnvPrefix, "ENCRYPTION_SALT_PEPPER")
 	envAuthAllowedDomains             = fmt.Sprintf(envVarFmt, authEnvPrefix, "ALLOWED_DOMAINS")
 	envAuthCookieExpirySeconds        = fmt.Sprintf(envVarFmt, authEnvPrefix, "COOKIE_EXPIRY_SECS")
-	envAuthEmailLoginDomain           = fmt.Sprintf(envVarFmt, authEnvPrefix, "EMAIL_LOGIN_DOMAIN")
 	envAuthLoginCodeSender            = fmt.Sprintf(envVarFmt, authEnvPrefix, "LOGIN_CODE_SENDER")
 	envAuthLoginCodeExpiry            = fmt.Sprintf(envVarFmt, authEnvPrefix, "LOGIN_CODE_EXPIRY")
 	envAuthRateLimiterAttempts        = fmt.Sprintf(envVarFmt, authEnvPrefix, "RATELIMITER_ATTEMPTS")
@@ -34,8 +34,7 @@ var (
 )
 
 const (
-	authEnvPrefix  = "ROVERAPI_AUTH"
-	roverEnvPrefix = "ROVERAPI_"
+	authEnvPrefix = "ROVERAPI_AUTH"
 )
 
 //
@@ -75,10 +74,6 @@ func AuthCookieExpirySeconds() uint {
 		log.Fatal().Err(parseErr).Str("envVar", envAuthCookieExpirySeconds).Msg("required env var has invalid format (expected integer)")
 	}
 	return uint(expiry)
-}
-
-func EmailLoginDomain() string {
-	return getRequiredEnv(envAuthEmailLoginDomain)
 }
 
 func AllowedAuthOrigins() []string {
@@ -171,4 +166,8 @@ func AuthCookieDomain() string {
 
 func LoginRedirectURL() string {
 	return getRequiredEnv(envAuthLoginRedirectURL)
+}
+
+func EmailAPIKey() string {
+	return getSecretEnv(envAuthEmailAPIKey)
 }
