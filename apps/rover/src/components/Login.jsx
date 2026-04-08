@@ -171,13 +171,15 @@ export default function Login() {
                     </div>
 
                     <div className={`login-step ${step === loginStepWait ? "is-active" : ""}`}>
-                        <p>Please check your email</p>
+                        <p>Please check your email — code entry will appear shortly.</p>
                     </div>
 
                     <div className={`login-step ${step === loginStepCode ? "is-active" : ""}`}>
                         <form onSubmit={onSubmitCode}>
                             <input
                                 type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={code}
                                 onChange={(e) => setCode(e.target.value)}
                                 placeholder="Enter your login code"

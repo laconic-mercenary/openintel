@@ -106,7 +106,7 @@ export default function Rover() {
 
     const onPositionError = (error) => {
         console.error(error);
-        setErrorMessage("Check geolocation is enabled — high precision locations may take a few seconds.");
+        setErrorMessage("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).");
     };
 
     const onIntelReady = (description, b64Image) => {
@@ -133,7 +133,7 @@ export default function Rover() {
             },
             (error) => {
                 console.error(error);
-                setErrorMessage("Check geolocation is enabled — high precision locations may take a few seconds.");
+                setErrorMessage("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).");
             },
             geolocationOptions,
         );
@@ -308,14 +308,14 @@ export default function Rover() {
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
                     <button className="rover-menu-item"
-                            onClick={() => setIntelIsOpen((previous) => !previous)}>
+                            onClick={() => { setIntelIsOpen((previous) => !previous); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
                             <Crosshair className="rover-menu-item-icon" aria-hidden="true" />
                             Get Intel
                         </span>
                     </button>
                     <button className="rover-menu-item"
-                            onClick={onZoomToMe}>
+                            onClick={() => { onZoomToMe(); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
                             <LocateFixed className="rover-menu-item-icon" aria-hidden="true" />
                             Zoom To Me
@@ -332,7 +332,7 @@ export default function Rover() {
                             Geolocation
                         </span>
                     </button>
-                    <button className="rover-menu-item" onClick={onLogout}>
+                    <button className="rover-menu-item" onClick={() => { onLogout(); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
                             <LogOut className="rover-menu-item-icon" aria-hidden="true" />
                             Logout

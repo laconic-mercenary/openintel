@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Camera, CameraOff } from "lucide-react";
+import { Camera, CameraOff, SwitchCamera } from "lucide-react";
 import cameraPoster from "../assets/camera-unavailable.svg";
 
 import "./Intel.css";
@@ -13,11 +13,12 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     const descriptionMaxLength = 300;
     const imageBlobMaxLength = 5242880;
 
-
     // State
 
     const [description, setDescription] = useState("");
     const [userError, setUserError] = useState("");
+    const [cameras, setCameras] = useState([]);
+    const [cameraIndex, setCameraIndex] = useState(0);
 
     // References
 
@@ -27,9 +28,11 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     const intelReadyRef = useRef(onIntelReady);
     const intelErrorRef = useRef(onIntelError);
     const intelCancelRef = useRef(onIntelCancel);
+    const cameraIndexRef = useRef(cameraIndex);
+    const camerasRef = useRef(cameras);
 
     // Effects
-    
+
     useEffect(() => {
         intelErrorRef.current = onIntelError;
     }, [onIntelError]);
@@ -43,6 +46,14 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     }, [onIntelCancel]);
 
     useEffect(() => {
+        cameraIndexRef.current = cameraIndex;
+    }, [cameraIndex]);
+
+    useEffect(() => {
+        camerasRef.current = cameras;
+    }, [cameras]);
+
+    useEffect(() => {
         if (!("mediaDevices" in navigator)) {
             setUserError("This browser is not supported.");
             return;
@@ -53,21 +64,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
         }
 
         let isMounted = true;
-        navigator.mediaDevices.getUserMedia({ video: true })
-                            .then((stream) => {
-                                if (!isMounted) {
-                                    stream.getTracks().forEach((track) => track.stop());
-                                    return;
-                                }
-                                streamRef.current = stream;
-                                if (videoRef.current) {
-                                    videoRef.current.srcObject = stream;
-                                }
-                            })
-                            .catch((error) => {
-                                console.error(`camera is not available: ${error}`);
-                                setUserError("No camera detected - please check your camera device.");
-                            });
+        startCamera(null, isMounted);
         return () => {
             isMounted = false;
             stopCamera();
@@ -75,6 +72,48 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     }, []);
 
     // Methods
+
+    const startCamera = (deviceId, isMounted = true) => {
+        const constraints = deviceId
+            ? { video: { deviceId: { exact: deviceId } } }
+            : { video: { facingMode: { ideal: "environment" } } };
+
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then((stream) => {
+                if (!isMounted) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+                return navigator.mediaDevices.enumerateDevices();
+            })
+            .then((devices) => {
+                if (!devices) return;
+                const videoDevices = devices.filter((d) => d.kind === "videoinput");
+                setCameras(videoDevices);
+                camerasRef.current = videoDevices;
+                const activeDeviceId = streamRef.current?.getVideoTracks()[0]?.getSettings()?.deviceId;
+                const idx = videoDevices.findIndex((d) => d.deviceId === activeDeviceId);
+                const resolvedIdx = idx >= 0 ? idx : 0;
+                setCameraIndex(resolvedIdx);
+                cameraIndexRef.current = resolvedIdx;
+            })
+            .catch((error) => {
+                console.error(`camera is not available: ${error}`);
+                setUserError("No camera detected - please check your camera device.");
+            });
+    };
+
+    const onSwitchCamera = () => {
+        const list = camerasRef.current;
+        if (list.length < 2) return;
+        const nextIndex = (cameraIndexRef.current + 1) % list.length;
+        stopCamera();
+        startCamera(list[nextIndex].deviceId);
+    };
 
     const onSubmitWithPhoto = () => {
         const video = videoRef.current;
@@ -129,16 +168,13 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
         if (description) {
             trimmedDescription = description.trim();
             if (trimmedDescription.length > descriptionMaxLength) {
-                invokeIntelError(new Error(`description must be less than or equal to ${descriptionMaxLength} characters`));
+                setUserError(`Description must be ${descriptionMaxLength} characters or fewer.`);
                 return;
             }
         }
         if (!b64Image) {
             if (trimmedDescription.length == 0) {
-                invokeIntelError(
-                    new Error("at least one of a description or image (or both) is required to submit"),
-                    "Add a description when submitting without a photo.",
-                );
+                setUserError("Add a description when submitting without a photo.");
                 return;
             }
         }
@@ -177,19 +213,27 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
         // TODO - add a tags entry below the text area
         <div className="modal-background">
             <div className="intel-wrapper modal-card">
-                <button className="intel-cancel" 
+                <button className="intel-cancel"
                         onClick={onCancel}>X</button>
                 <h2>Get Intel</h2>
                 { userError && (
                     <div className="intel-error">{userError}</div>
                 ) }
-                <video className="intel-camera" 
-                        ref={videoRef} 
-                        autoPlay 
-                        playsInline 
+                <video className="intel-camera"
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
                         poster={cameraPoster} />
-                <canvas ref={canvasRef} 
+                <canvas ref={canvasRef}
                         style={{ display: "none" }} />
+                { cameras.length > 1 && (
+                    <button className="intel-switch-camera" onClick={onSwitchCamera}>
+                        <span className="intel-submit-label">
+                            <SwitchCamera size={16} aria-hidden="true" />
+                            Switch Camera
+                        </span>
+                    </button>
+                )}
                 <textarea value={description}
                             id="intel-description"
                             name="intel-description"
@@ -197,14 +241,14 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Add description here (if any)"
                             rows={5} />
-                <button className="intel-submit-w-photo" 
+                <button className="intel-submit-w-photo"
                         onClick={onSubmitWithPhoto}>
                     <span className="intel-submit-label">
                         <Camera size={16} aria-hidden="true" />
                         Submit With Photo
                     </span>
                 </button>
-                <button className="intel-submit-wo-photo" 
+                <button className="intel-submit-wo-photo"
                         onClick={onSubmitWithoutPhoto}>
                     <span className="intel-submit-label">
                         <CameraOff size={16} aria-hidden="true" />

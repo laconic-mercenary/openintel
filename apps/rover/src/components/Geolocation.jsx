@@ -45,6 +45,22 @@ export default function Geolocation({ onPositionReady, onPositionError, geolocat
         return () => stopPositionTracking();
     }, [geolocationIsEnabled]);
 
+    useEffect(() => {
+        if (!("permissions" in navigator)) return;
+        let permissionStatus = null;
+        navigator.permissions.query({ name: "geolocation" }).then((status) => {
+            permissionStatus = status;
+            status.onchange = () => {
+                if (status.state === "granted" && geolocationIsEnabled) {
+                    startPositionTracking();
+                }
+            };
+        }).catch((error) => { console.error("permissions api error:", error); });
+        return () => {
+            if (permissionStatus) permissionStatus.onchange = null;
+        };
+    }, [geolocationIsEnabled]);
+
     // Methods
 
     const startPositionTracking = () => {

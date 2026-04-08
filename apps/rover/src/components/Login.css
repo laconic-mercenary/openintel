@@ -5,7 +5,6 @@
   justify-content: center;
   background: #000000;
   padding: 1rem;
-  border: 2px solid #ffffff;
   box-sizing: border-box;
 }
 
@@ -20,7 +19,7 @@
 
 .login-steps {
   position: relative;
-  min-height: 140px;
+  min-height: 280px;
 }
 
 .login-step {
