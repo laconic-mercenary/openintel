@@ -144,7 +144,10 @@ export default function Login() {
     return (
         <div className="login-container">
             <div className="login-card">
-                <h1 className="login-title">Rover Login</h1>
+                <div className="login-title">
+                    <img src="/favicon.png" alt="" className="login-favicon" />
+                    <h2>Rover Login</h2>
+                </div>
                 
                 <div className="login-steps">
                     <div className={`login-step ${step === loginStepEmail ? "is-active" : ""}`}>
@@ -172,6 +175,10 @@ export default function Login() {
 
                     <div className={`login-step ${step === loginStepWait ? "is-active" : ""}`}>
                         <p>Please check your email — code entry will appear shortly.</p>
+                    </div>
+
+                    <div className={`login-step ${step === loginStepConflict ? "is-active" : ""}`}>
+                        <p>A login code was already sent — please check your email or wait a few minutes before trying again.</p>
                     </div>
 
                     <div className={`login-step ${step === loginStepCode ? "is-active" : ""}`}>

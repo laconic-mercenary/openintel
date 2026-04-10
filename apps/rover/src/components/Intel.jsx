@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Camera, CameraOff, SwitchCamera } from "lucide-react";
 import cameraPoster from "../assets/camera-unavailable.svg";
+import TagInput from "./TagInput.jsx";
 
 import "./Intel.css";
 
-export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
+export default function Intel({ onIntelReady, onIntelError, onIntelCancel, tagSuggestions = [], initialTags = [] }) {
 
     // Consts
 
@@ -16,6 +17,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     // State
 
     const [description, setDescription] = useState("");
+    const [tags, setTags] = useState(initialTags);
     const [userError, setUserError] = useState("");
     const [cameras, setCameras] = useState([]);
     const [cameraIndex, setCameraIndex] = useState(0);
@@ -189,7 +191,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
     };
 
     const invokeIntelReady = (description, b64Image) => {
-        intelReadyRef.current?.(description, b64Image);
+        intelReadyRef.current?.(description, b64Image, tags);
     };
 
     const invokeIntelCancel = () => {
@@ -215,7 +217,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
             <div className="intel-wrapper modal-card">
                 <button className="intel-cancel"
                         onClick={onCancel}>X</button>
-                <h2>Get Intel</h2>
+                <h2 className="intel-title">Get Intel</h2>
                 { userError && (
                     <div className="intel-error">{userError}</div>
                 ) }
@@ -234,6 +236,7 @@ export default function Intel({ onIntelReady, onIntelError, onIntelCancel }) {
                         </span>
                     </button>
                 )}
+                <TagInput tags={tags} onTagsChange={setTags} suggestions={tagSuggestions} />
                 <textarea value={description}
                             id="intel-description"
                             name="intel-description"

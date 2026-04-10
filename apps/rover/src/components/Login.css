@@ -43,8 +43,16 @@
 }
 
 .login-title {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
   margin-bottom: 2rem;
+}
+
+.login-favicon {
+  width: 2rem;
+  height: 2rem;
 }
 
 .login-input {

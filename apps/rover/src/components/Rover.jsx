@@ -10,6 +10,7 @@ import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, getSession, logout } from "../utils/api";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
+import { saveTags, loadTags } from "../utils/tags";
 import { coordsToGeohash5, bboxToGeohash5Cells } from "../utils/geo";
 
 import "./Rover.css";
@@ -30,6 +31,7 @@ export default function Rover() {
     // State
 
     const [menuIsOpen, setMenuIsOpen] = useState(false);
+    const [infoIsOpen, setInfoIsOpen] = useState(false);
     const [intelIsOpen, setIntelIsOpen] = useState(false);
     const [geolocationIsEnabled, setGeolocationIsEnabled] = useState(true);
     const [position, setPosition] = useState(null);
@@ -39,6 +41,8 @@ export default function Rover() {
     const [cryptoKey, setCryptoKey] = useState(null);
     const [encSalt, setEncSalt] = useState(null);
     const [errorMessage, setErrorMessage] = useState(null);
+    const [allTags, setAllTags] = useState([]);
+    const [lastUsedTags, setLastUsedTags] = useState([]);
 
     // References
 
@@ -58,6 +62,10 @@ export default function Rover() {
     }, [cryptoKey]);
 
     useEffect(() => {
+        loadTags()
+            .then((tags) => setAllTags(tags))
+            .catch((loadTagsErr) => console.error("failed to load tags from indexeddb:", loadTagsErr));
+
         getSession()
             .then((salt) => {
                 if (!salt) {
@@ -77,21 +85,22 @@ export default function Rover() {
 
     // Methods
 
-    const newIntelCandidate = (description, b64image, coords) => {
+    const newIntelCandidate = (description, b64image, coords, tags) => {
         return {
             latitude: coords.latitude,
             longitude: coords.longitude,
             accuracy: coords.accuracy,
             description: description,
             b64image: b64image,
+            tags: tags ?? [],
             timestamp: currentTimestampMillis(),
             confirmed: false,
             key: crypto.randomUUID(),
         }
     };
 
-    const addIntelPoint = (description, b64Image, coords) => {
-        const intelCandidate = newIntelCandidate(description, b64Image, coords);
+    const addIntelPoint = (description, b64Image, coords, tags) => {
+        const intelCandidate = newIntelCandidate(description, b64Image, coords, tags);
         setIntelPoints((previous) => [...previous, intelCandidate]);
         setZoomToNewIntelSignal((previous) => previous + 1);
         setIntelIsOpen(false);
@@ -109,14 +118,14 @@ export default function Rover() {
         setErrorMessage("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).");
     };
 
-    const onIntelReady = (description, b64Image) => {
+    const onIntelReady = (description, b64Image, tags) => {
         if (!geolocationIsEnabled) {
             console.warn("geolocation is disabled - will not store intel");
             return;
         }
         const latestPosition = positionRef.current;
         if (latestPosition) {
-            addIntelPoint(description, b64Image, latestPosition.coords);
+            addIntelPoint(description, b64Image, latestPosition.coords, tags);
             return;
         }
 
@@ -129,7 +138,7 @@ export default function Rover() {
             (currentPosition) => {
                 positionRef.current = currentPosition;
                 setPosition(currentPosition);
-                addIntelPoint(description, b64Image, currentPosition.coords);
+                addIntelPoint(description, b64Image, currentPosition.coords, tags);
             },
             (error) => {
                 console.error(error);
@@ -155,6 +164,7 @@ export default function Rover() {
                 accuracy: intelPoint.accuracy,
                 description: intelPoint.description,
                 timestamp: intelPoint.timestamp,
+                tags: intelPoint.tags ?? [],
             });
             const encryptedPayload = await encryptText(key, payload);
 
@@ -187,6 +197,13 @@ export default function Rover() {
                     hasImage: !!intelPoint.b64image,
                 };
             }));
+
+            if (intelPoint.tags?.length > 0) {
+                setLastUsedTags(intelPoint.tags);
+                saveTags(intelPoint.tags)
+                    .then(() => loadTags().then((tags) => setAllTags(tags)))
+                    .catch((saveTagsErr) => console.error("failed to save tags:", saveTagsErr));
+            }
         } catch (error) {
             console.error('failed to store intel:', error);
             setErrorMessage("Failed to save intel — please try again.");
@@ -213,7 +230,7 @@ export default function Rover() {
             const items = await listIntel(minLat, minLon, maxLat, maxLon);
             const results = await Promise.allSettled(items.map(async (item) => {
                 const plaintext = await decryptText(key, item.encryptedPayload);
-                const { lat, lon, accuracy, description, timestamp } = JSON.parse(plaintext);
+                const { lat, lon, accuracy, description, timestamp, tags } = JSON.parse(plaintext);
                 return {
                     key: item.key,
                     geohash: item.geohash,
@@ -222,6 +239,7 @@ export default function Rover() {
                     accuracy,
                     description,
                     timestamp,
+                    tags: tags ?? [],
                     hasImage: item.hasImage,
                     confirmed: true,
                     b64image: null,
@@ -290,7 +308,23 @@ export default function Rover() {
             <header className="rover-menu-header">
                 <button className="rover-menu-expander"
                         onClick={() => setMenuIsOpen((previous) => !previous)}>≡</button>
+                <button className="rover-menu-favicon-btn"
+                        onClick={() => setInfoIsOpen((previous) => !previous)}>
+                    <img src="/favicon.png" alt="Info" className="rover-menu-favicon" />
+                </button>
             </header>
+            { infoIsOpen && (
+                <div className="rover-info-popup">
+                    <button className="rover-info-popup-close" onClick={() => setInfoIsOpen(false)}>✕</button>
+                    <p className="rover-info-popup-title">Security</p>
+                    <ul className="rover-info-popup-list">
+                        <li>Algorithm: AES-256-GCM</li>
+                        <li>Key derivation: PBKDF2 / SHA-256</li>
+                        <li>Encrypted: photos, descriptions, coordinates</li>
+                        <li>Encryption is client-side only — the server never sees your data in plaintext</li>
+                    </ul>
+                </div>
+            )}
             <Geolocation onPositionReady={onPositionReady} 
                         onPositionError={onPositionError} 
                         geolocationIsEnabled={geolocationIsEnabled} />
@@ -340,9 +374,11 @@ export default function Rover() {
                     </button>
                 </nav>
             </div>
-            { intelIsOpen && (<Intel onIntelReady={onIntelReady} 
-                                        onIntelError={onIntelError} 
-                                        onIntelCancel={() => setIntelIsOpen(false)}/>) }
+            { intelIsOpen && (<Intel onIntelReady={onIntelReady}
+                                        onIntelError={onIntelError}
+                                        onIntelCancel={() => setIntelIsOpen(false)}
+                                        tagSuggestions={allTags}
+                                        initialTags={lastUsedTags} />) }
         </div>
     )
 }

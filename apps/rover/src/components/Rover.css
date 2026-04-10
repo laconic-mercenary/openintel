@@ -24,6 +24,63 @@
   color: inherit;
 }
 
+.rover-menu-favicon-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.rover-menu-favicon {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 4px;
+}
+
+.rover-info-popup {
+  position: fixed;
+  top: 3.6rem;
+  right: 12px;
+  z-index: 300;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.6rem;
+  padding: 1rem 1.2rem;
+  color: #fff;
+  min-width: 200px;
+}
+
+.rover-info-popup-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rover-info-popup-title {
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  padding-right: 1.2rem;
+}
+
+.rover-info-popup-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .rover-menu {
   position: fixed;
   top: 3rem;
