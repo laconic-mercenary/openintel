@@ -41,6 +41,8 @@ export default function Rover() {
     const [cryptoKey, setCryptoKey] = useState(null);
     const [encSalt, setEncSalt] = useState(null);
     const [errorMessage, setErrorMessage] = useState(null);
+    const [errorDetailsMessage, setErrorDetailsMessage] = useState(null);
+    const [errorDetailsIsOpen, setErrorDetailsIsOpen] = useState(false);
     const [allTags, setAllTags] = useState([]);
     const [lastUsedTags, setLastUsedTags] = useState([]);
 
@@ -113,9 +115,20 @@ export default function Rover() {
         setPosition(position);
     };
 
+    const setError = (message, error) => {
+        setErrorMessage(message);
+        setErrorDetailsMessage(error ? `${error.name ? error.name + ": " : ""}${error.message || String(error)}` : null);
+    };
+
+    const dismissError = () => {
+        setErrorMessage(null);
+        setErrorDetailsMessage(null);
+        setErrorDetailsIsOpen(false);
+    };
+
     const onPositionError = (error) => {
         console.error(error);
-        setErrorMessage("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).");
+        setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error);
     };
 
     const onIntelReady = (description, b64Image, tags) => {
@@ -142,16 +155,12 @@ export default function Rover() {
             },
             (error) => {
                 console.error(error);
-                setErrorMessage("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).");
+                setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error);
             },
             geolocationOptions,
         );
     };
 
-    const onIntelError = (error) => {
-        console.error(error);
-        setErrorMessage("Something went wrong capturing intel — please try again.");
-    };
 
     const onKeepIntel = async (intelPoint) => {
         const key = cryptoKeyRef.current;
@@ -174,8 +183,12 @@ export default function Rover() {
                     ? intelPoint.b64image.split(',')[1]
                     : intelPoint.b64image;
                 const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-                const encBytes = await encryptBytes(key, bytes.buffer);
-                encryptedImage = btoa(String.fromCharCode(...new Uint8Array(encBytes)));
+                const encBytes = new Uint8Array(await encryptBytes(key, bytes.buffer));
+                let binary = "";
+                for (let i = 0; i < encBytes.length; i++) {
+                    binary += String.fromCharCode(encBytes[i]);
+                }
+                encryptedImage = btoa(binary);
             }
 
             const { key: rowKey } = await storeIntel({
@@ -206,7 +219,7 @@ export default function Rover() {
             }
         } catch (error) {
             console.error('failed to store intel:', error);
-            setErrorMessage("Failed to save intel — please try again.");
+            setError("Failed to save intel — please try again.", error);
         }
     };
 
@@ -218,7 +231,7 @@ export default function Rover() {
             });
         } catch (error) {
             console.error('failed to delete intel:', error);
-            setErrorMessage("Failed to delete intel — please try again.");
+            setError("Failed to delete intel — please try again.", error);
         }
     };
 
@@ -254,7 +267,7 @@ export default function Rover() {
             const failedCount = results.filter((r) => r.status === 'rejected').length;
             if (failedCount > 0 && !decryptionWarningShownRef.current) {
                 decryptionWarningShownRef.current = true;
-                setErrorMessage("Some intel could not be decrypted with the current password — it may have been stored with a different one.");
+                setError("Some intel could not be decrypted with the current password — it may have been stored with a different one.", null);
             }
             setIntelPoints((previous) => {
                 const currentCells = new Set(bboxToGeohash5Cells(minLat, minLon, maxLat, maxLon));
@@ -266,7 +279,7 @@ export default function Rover() {
             });
         } catch (error) {
             console.error('failed to load intel from server:', error);
-            setErrorMessage("Failed to load intel — check your connection and try panning the map.");
+            setError("Failed to load intel — check your connection and try panning the map.", error);
         }
     };
 
@@ -286,7 +299,7 @@ export default function Rover() {
             navigate(loginPath);
         } catch (error) {
             console.error('failed to logout:', error);
-            setErrorMessage("Failed to logout — please try again.");
+            setError("Failed to logout — please try again.", error);
         }
     };
 
@@ -302,7 +315,21 @@ export default function Rover() {
             { errorMessage && (
                 <div className="rover-error-banner">
                     <span>⚠ {errorMessage}</span>
-                    <button className="rover-error-banner-dismiss" onClick={() => setErrorMessage(null)}>✕</button>
+                    <span className="rover-error-banner-actions">
+                        { errorDetailsMessage && (
+                            <button className="rover-error-banner-details" onClick={() => setErrorDetailsIsOpen(true)}>Details</button>
+                        )}
+                        <button className="rover-error-banner-dismiss" onClick={dismissError}>✕</button>
+                    </span>
+                </div>
+            )}
+            { errorDetailsIsOpen && (
+                <div className="rover-error-details-overlay" onClick={() => setErrorDetailsIsOpen(false)}>
+                    <div className="rover-error-details-popup" onClick={(e) => e.stopPropagation()}>
+                        <p className="rover-error-details-title">Error Details</p>
+                        <p className="rover-error-details-message">{errorDetailsMessage}</p>
+                        <button className="rover-error-details-close" onClick={() => setErrorDetailsIsOpen(false)}>Close</button>
+                    </div>
                 </div>
             )}
             <header className="rover-menu-header">
@@ -375,7 +402,6 @@ export default function Rover() {
                 </nav>
             </div>
             { intelIsOpen && (<Intel onIntelReady={onIntelReady}
-                                        onIntelError={onIntelError}
                                         onIntelCancel={() => setIntelIsOpen(false)}
                                         tagSuggestions={allTags}
                                         initialTags={lastUsedTags} />) }
