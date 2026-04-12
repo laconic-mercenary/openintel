@@ -26,10 +26,11 @@ import (
 // consts and globals
 
 const (
-	httpPortDefault      = ":8081"
-	shutdownDeadlineSecs = 30
-	maxRequestBodyBytes  = 10 << 20
-	maxGeohashQueryCells = 500
+	httpPortDefault          = ":8081"
+	shutdownDeadlineSecs     = 30
+	maxRequestBodyBytes      = 25 << 20 // 25MB — POST /rover/intel carries base64-encoded encrypted image (~33% overhead on 15MB raw)
+	maxSmallRequestBodyBytes = 32 << 10 // 32KB — all other routes carry no image data
+	maxGeohashQueryCells     = 500
 )
 
 func listenAddr() string {
@@ -313,10 +314,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rover/health", handleHealth)
-	mux.HandleFunc("POST /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleStoreIntel(roverService, jwtSecret, emailHashPepper, timestampPepper))))
-	mux.HandleFunc("GET /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleListIntel(roverService, jwtSecret, emailHashPepper))))
-	mux.HandleFunc("GET /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleGetIntelImageURL(roverService))))
-	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, handleDeleteIntel(roverService, jwtSecret, emailHashPepper))))
+	mux.HandleFunc("POST /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxRequestBodyBytes, handleStoreIntel(roverService, jwtSecret, emailHashPepper, timestampPepper)))))
+	mux.HandleFunc("GET /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleListIntel(roverService, jwtSecret, emailHashPepper)))))
+	mux.HandleFunc("GET /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleGetIntelImageURL(roverService)))))
+	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleDeleteIntel(roverService, jwtSecret, emailHashPepper)))))
 
 	apiServer := &http.Server{
 		Addr:    listenAddr(),
