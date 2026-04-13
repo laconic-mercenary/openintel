@@ -51,6 +51,19 @@ export const logout = async () => {
     }
 };
 
+export const updateIntel = async (intelPoint) => {
+    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            encryptedPayload: intelPoint.encryptedPayload,
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(`failed to update intel: ${response.status}`);
+    }
+};
+
 export const deleteIntel = async (intelPoint) => {
     const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
         method: "DELETE",

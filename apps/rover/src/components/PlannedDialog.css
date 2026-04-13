@@ -1,0 +1,61 @@
+.planned-title {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.planned-description {
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+button.planned-cancel {
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  width: 2em;
+  height: 2em;
+  background: transparent;
+  color: darkred;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  place-items: center;
+  display: grid;
+  justify-content: center;
+}
+
+.planned-error {
+  color: #b00020;
+  background: #ffe8eb;
+  border: 1px solid #f5b5be;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 8px 0 12px 0;
+  font-size: 0.9rem;
+}
+
+.planned-save {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  border: 1px solid #c0c0c0;
+  border-radius: 6px;
+  background: #2a4a7f;
+  color: #f2f2f2;
+  padding: 10px 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.planned-delete {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  border: 1px solid #a33f36;
+  border-radius: 6px;
+  background: #a33f36;
+  color: #f9f5f2;
+  padding: 8px 12px;
+  font-weight: 600;
+}

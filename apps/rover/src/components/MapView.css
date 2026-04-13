@@ -129,6 +129,17 @@
   color: #2b2f35;
 }
 
+.intel-point-action.edit {
+  background: #5e9fb2;
+  color: #f4f8f2;
+}
+
+.intel-point-action.add-note {
+  background: #5c8cbf;
+  color: #f4f8f2;
+  white-space: nowrap;
+}
+
 .intel-point-delete-confirm {
   min-width: 170px;
   display: grid;

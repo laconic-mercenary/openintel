@@ -22,6 +22,12 @@ type intelTableEntity struct {
 	ImageKey            string `json:"ImageKey"`
 }
 
+type intelTableEntityUpdate struct {
+	PartitionKey     string `json:"PartitionKey"`
+	RowKey           string `json:"RowKey"`
+	EncryptedPayload string `json:"EncryptedPayload"`
+}
+
 type AZPrivateIntelRepository struct {
 	serviceClient *aztables.ServiceClient
 	tableClient   *aztables.Client
@@ -102,6 +108,28 @@ func (repository *AZPrivateIntelRepository) GetPrivateIntelMetadata(ctx context.
 		return PrivateIntel{}, unmarshalErr
 	}
 	return entityToPrivateIntel(entity), nil
+}
+
+func (repository *AZPrivateIntelRepository) UpdatePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string, intel PrivateIntel) error {
+	log.Trace().Msg("UpdatePrivateIntelMetadata")
+	entity := intelTableEntityUpdate{
+		PartitionKey:     partitionKey,
+		RowKey:           rowKey,
+		EncryptedPayload: intel.EncryptedPayload,
+	}
+	entityBytes, marshalErr := json.Marshal(entity)
+	if marshalErr != nil {
+		log.Error().Err(marshalErr).Msg("error marshaling intel entity for update")
+		return marshalErr
+	}
+	_, updateErr := repository.tableClient.UpdateEntity(ctx, entityBytes, &aztables.UpdateEntityOptions{
+		UpdateMode: aztables.UpdateModeMerge,
+	})
+	if updateErr != nil {
+		log.Error().Err(updateErr).Str("partitionKey", partitionKey).Str("rowKey", rowKey).Msg("error updating intel entity in table")
+		return updateErr
+	}
+	return nil
 }
 
 func (repository *AZPrivateIntelRepository) DeletePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) error {

@@ -24,6 +24,7 @@ type PrivateIntelMetadataRepository interface {
 	Initialize(ctx context.Context) error
 	StorePrivateIntelMetadata(ctx context.Context, intel PrivateIntel) (string, error)
 	GetPrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) (PrivateIntel, error)
+	UpdatePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string, intel PrivateIntel) error
 	DeletePrivateIntelMetadata(ctx context.Context, partitionKey, rowKey string) error
 	ListPrivateIntelByGeohashes(ctx context.Context, emailHash string, geohashes []string) ([]PrivateIntel, error)
 }

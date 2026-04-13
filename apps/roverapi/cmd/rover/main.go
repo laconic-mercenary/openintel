@@ -43,6 +43,10 @@ func listenAddr() string {
 //
 // types
 
+type updateIntelRequest struct {
+	EncryptedPayload string `json:"encryptedPayload"`
+}
+
 type storeIntelRequest struct {
 	Key              string `json:"key"`
 	Geohash          string `json:"geohash"`
@@ -125,6 +129,41 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
+	}
+}
+
+func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper string) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		log.Trace().Msg("handleUpdateIntel")
+
+		email, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
+		geohash := request.PathValue("geohash")
+		key := request.PathValue("key")
+		emailHash := security.HmacSha256Hex(email, emailHashPepper)
+
+		var req updateIntelRequest
+		decodeErr := json.NewDecoder(request.Body).Decode(&req)
+		if decodeErr != nil {
+			log.Warn().Err(decodeErr).Msg("invalid request body")
+			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
+			return
+		}
+
+		updateErr := roverService.UpdatePrivateIntel(request.Context(), emailHash, geohash, key, storage.PrivateIntel{
+			EncryptedPayload: req.EncryptedPayload,
+		})
+		if updateErr != nil {
+			log.Error().Err(updateErr).Msg("failed to update intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, updateErr, "failed to update intel")
+			return
+		}
+		server.RespondWithOk(writer, []byte("{}"))
 	}
 }
 
@@ -317,6 +356,7 @@ func main() {
 	mux.HandleFunc("POST /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxRequestBodyBytes, handleStoreIntel(roverService, jwtSecret, emailHashPepper, timestampPepper)))))
 	mux.HandleFunc("GET /rover/intel", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleListIntel(roverService, jwtSecret, emailHashPepper)))))
 	mux.HandleFunc("GET /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleGetIntelImageURL(roverService)))))
+	mux.HandleFunc("PUT /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleUpdateIntel(roverService, jwtSecret, emailHashPepper)))))
 	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleDeleteIntel(roverService, jwtSecret, emailHashPepper)))))
 
 	apiServer := &http.Server{

@@ -7,12 +7,13 @@ import { Map as MLMap, Popup as MLPopup } from "maplibre-gl";
 import markerConfirmedUrl from "../assets/markers/intel-confirmed.svg";
 import markerNewUrl from "../assets/markers/intel-new.svg";
 import markerCommunityUrl from "../assets/markers/intel-community.svg";
+import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 
 import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, zoomToPositionSignal, zoomToNewIntelSignal }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, zoomToPositionSignal, zoomToNewIntelSignal }) {
     
     // Consts
     
@@ -29,16 +30,19 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         newActions: "new-actions",
         confirmedActions: "confirmed-actions",
         confirmedDeleteConfirm: "confirmed-delete-confirm",
+        plannedActions: "planned-actions",
     };
     const markerImageIDs = {
         confirmed: "marker-confirmed",
         new: "marker-new",
         community: "marker-community",
+        planned: "marker-planned",
     };
     const markerImageURLs = {
         [markerImageIDs.confirmed]: markerConfirmedUrl,
         [markerImageIDs.new]: markerNewUrl,
         [markerImageIDs.community]: markerCommunityUrl,
+        [markerImageIDs.planned]: markerPlannedUrl,
     };
 
     const rasterStyle = {
@@ -105,6 +109,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                         markerImageIDs.confirmed,
                         "community",
                         markerImageIDs.community,
+                        "planned",
+                        markerImageIDs.planned,
                         markerImageIDs.new,
                     ],
                     "icon-size": [
@@ -137,6 +143,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
     const onBoundsChangeRef = useRef(onBoundsChange);
     const boundsDebounceRef = useRef(null);
+    const onAddPlannedIntelRef = useRef(onAddPlannedIntel);
+    const editPlannedIntelRef = useRef(onEditPlannedIntel);
     const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
     const [reviewImageUrl, setReviewImageUrl] = useState(null);
     const reviewBlobUrlRef = useRef(null);
@@ -176,6 +184,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         }
         if (activePopupType === intelPopupTypes.confirmedDeleteConfirm && !activeIntelPoint.confirmed) {
             removeIntelActionsPopup();
+            return;
+        }
+        if (activePopupType === intelPopupTypes.plannedActions && !activeIntelPoint.planned) {
+            removeIntelActionsPopup();
         }
     }, [intelPoints]);
 
@@ -204,6 +216,14 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         onBoundsChangeRef.current = onBoundsChange;
     }, [onBoundsChange]);
+
+    useEffect(() => {
+        onAddPlannedIntelRef.current = onAddPlannedIntel;
+    }, [onAddPlannedIntel]);
+
+    useEffect(() => {
+        editPlannedIntelRef.current = onEditPlannedIntel;
+    }, [onEditPlannedIntel]);
 
     useEffect(() => {
         if (!reviewIntelPointKey) {
@@ -307,6 +327,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             loadMarkerImages();
             applyMarkerHoverCursor();
             applyMarkerClickEvent();
+            applyContextMenuEvent();
             fireBoundsChange(map);
         });
 
@@ -323,6 +344,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         removeIntelActionsPopup();
         removeMarkerClickEvent();
         removeMarkerHoverCursor();
+        removeContextMenuEvent();
         roverMapRef.current?.remove();
         roverMapRef.current = null;
     };
@@ -418,6 +440,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             return;
         }
         removeIntelActionsPopup(); // non-new, close any popups first
+        if (intelType === "planned") {
+            onPlannedIntelClick(clickedIntel, event.lngLat);
+            return;
+        }
         if (intelType === "confirmed") {
             onConfirmedIntelClick(clickedIntel, event.lngLat);
             return;
@@ -565,6 +591,124 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
 
     };
 
+    const onPlannedIntelClick = (intelPoint, lngLat) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        removeIntelActionsPopup();
+
+        const popupContent = createEditDeletePopup(
+            () => {
+                removeIntelActionsPopup();
+                editPlannedIntelRef.current?.(intelPoint);
+            },
+            () => {
+                showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
+            },
+        );
+
+        const plannedActionsPopup = new MLPopup({
+            className: "intel-point-actions-popup",
+            closeButton: false,
+            closeOnClick: false,
+            closeOnMove: false,
+            anchor: "top",
+            offset: intelActionsPopupOffset,
+        })
+            .setLngLat(lngLat)
+            .setDOMContent(popupContent)
+            .addTo(map);
+
+        plannedActionsPopup.on("close", () => {
+            if (activeIntelActionsPopupRef.current === plannedActionsPopup) {
+                activeIntelActionsPopupRef.current = null;
+                activeIntelActionPointKeyRef.current = null;
+                activeIntelActionPopupTypeRef.current = null;
+            }
+        });
+
+        activeIntelActionsPopupRef.current = plannedActionsPopup;
+        activeIntelActionPointKeyRef.current = intelPoint.key;
+        activeIntelActionPopupTypeRef.current = intelPopupTypes.plannedActions;
+    };
+
+    const applyContextMenuEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.on("contextmenu", onMapContextMenu);
+    };
+
+    const removeContextMenuEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        map.off("contextmenu", onMapContextMenu);
+    };
+
+    const onMapContextMenu = (event) => {
+        event.originalEvent?.preventDefault();
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        const features = map.queryRenderedFeatures(event.point, { layers: [markerLayerID] });
+        if (features.length > 0) {
+            return;
+        }
+        showAddNoteContextMenu(event.lngLat);
+    };
+
+    const showAddNoteContextMenu = (lngLat) => {
+        const map = roverMapRef.current;
+        if (!map) {
+            return;
+        }
+        removeIntelActionsPopup();
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "intel-point-actions";
+
+        const addButton = document.createElement("button");
+        addButton.type = "button";
+        addButton.className = "intel-point-action add-note";
+        addButton.textContent = "Add Note Here";
+        addButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            removeIntelActionsPopup();
+            onAddPlannedIntelRef.current?.(lngLat.lat, lngLat.lng);
+        });
+
+        wrapper.append(addButton);
+
+        const contextPopup = new MLPopup({
+            className: "intel-point-actions-popup",
+            closeButton: false,
+            closeOnClick: true,
+            closeOnMove: true,
+            anchor: "top",
+            offset: intelActionsPopupOffset,
+        })
+            .setLngLat(lngLat)
+            .setDOMContent(wrapper)
+            .addTo(map);
+
+        contextPopup.on("close", () => {
+            if (activeIntelActionsPopupRef.current === contextPopup) {
+                activeIntelActionsPopupRef.current = null;
+                activeIntelActionPointKeyRef.current = null;
+                activeIntelActionPopupTypeRef.current = null;
+            }
+        });
+
+        activeIntelActionsPopupRef.current = contextPopup;
+        activeIntelActionPointKeyRef.current = null;
+        activeIntelActionPopupTypeRef.current = null;
+    };
+
     const removeIntelActionsPopup = () => {
         activeIntelActionsPopupRef.current?.remove();
         activeIntelActionsPopupRef.current = null;
@@ -621,6 +765,32 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         });
 
         wrapper.append(reviewButton, deleteButton);
+        return wrapper;
+    };
+
+    const createEditDeletePopup = (onEditClick, onDeleteClick) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "intel-point-actions";
+
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "intel-point-action edit";
+        editButton.textContent = "Edit";
+        editButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onEditClick();
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "intel-point-action delete";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onDeleteClick();
+        });
+
+        wrapper.append(editButton, deleteButton);
         return wrapper;
     };
 
@@ -828,6 +998,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             let intelType = "new";
             if (point.community) {
                 intelType = "community";
+            } else if (point.planned) {
+                intelType = "planned";
             } else if (point.confirmed) {
                 intelType = "confirmed";
             }

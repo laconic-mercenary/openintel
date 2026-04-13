@@ -5,9 +5,10 @@ import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
 import EncryptionSetup from "./EncryptionSetup.jsx";
+import PlannedDialog from "./PlannedDialog.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, listIntel, deleteIntel, getSession, logout } from "../utils/api";
+import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
 import { saveTags, loadTags } from "../utils/tags";
@@ -45,6 +46,7 @@ export default function Rover() {
     const [errorDetailsIsOpen, setErrorDetailsIsOpen] = useState(false);
     const [allTags, setAllTags] = useState([]);
     const [lastUsedTags, setLastUsedTags] = useState([]);
+    const [plannedDialogState, setPlannedDialogState] = useState(null);
 
     // References
 
@@ -243,7 +245,7 @@ export default function Rover() {
             const items = await listIntel(minLat, minLon, maxLat, maxLon);
             const results = await Promise.allSettled(items.map(async (item) => {
                 const plaintext = await decryptText(key, item.encryptedPayload);
-                const { lat, lon, accuracy, description, timestamp, tags } = JSON.parse(plaintext);
+                const { lat, lon, accuracy, description, timestamp, tags, type } = JSON.parse(plaintext);
                 return {
                     key: item.key,
                     geohash: item.geohash,
@@ -253,6 +255,7 @@ export default function Rover() {
                     description,
                     timestamp,
                     tags: tags ?? [],
+                    planned: type === "planned",
                     hasImage: item.hasImage,
                     confirmed: true,
                     b64image: null,
@@ -287,6 +290,93 @@ export default function Rover() {
         setIntelPoints((previous) => {
             return previous.filter((point) => point.key !== intelPoint.key)
         });
+    };
+
+    const onAddPlannedIntel = (lat, lon) => {
+        setPlannedDialogState({ mode: "add", lat, lon });
+    };
+
+    const onEditPlannedIntel = (intelPoint) => {
+        setPlannedDialogState({ mode: "edit", intelPoint });
+    };
+
+    const onSavePlannedIntel = async (description, tags) => {
+        const key = cryptoKeyRef.current;
+        const state = plannedDialogState;
+        try {
+            if (state.mode === "add") {
+                const { lat, lon } = state;
+                const geohash = coordsToGeohash5(lat, lon);
+                const intelKey = crypto.randomUUID();
+                const timestamp = currentTimestampMillis();
+                const payload = JSON.stringify({
+                    lat, lon, accuracy: 0, description, timestamp, tags: tags ?? [], type: "planned",
+                });
+                const encryptedPayload = await encryptText(key, payload);
+                const { key: rowKey } = await storeIntel({
+                    key: intelKey,
+                    geohash,
+                    encryptedPayload,
+                    encryptedImage: null,
+                    timestamp,
+                });
+                setIntelPoints((prev) => [...prev, {
+                    key: rowKey,
+                    geohash,
+                    latitude: lat,
+                    longitude: lon,
+                    accuracy: 0,
+                    description,
+                    timestamp,
+                    tags: tags ?? [],
+                    planned: true,
+                    confirmed: true,
+                    hasImage: false,
+                    b64image: null,
+                    fromServer: false,
+                }]);
+            } else {
+                const intelPoint = state.intelPoint;
+                const payload = JSON.stringify({
+                    lat: intelPoint.latitude,
+                    lon: intelPoint.longitude,
+                    accuracy: 0,
+                    description,
+                    timestamp: intelPoint.timestamp,
+                    tags: tags ?? [],
+                    type: "planned",
+                });
+                const encryptedPayload = await encryptText(key, payload);
+                await updateIntel({ geohash: intelPoint.geohash, key: intelPoint.key, encryptedPayload });
+                setIntelPoints((prev) => prev.map((p) => {
+                    if (p.key !== intelPoint.key) return p;
+                    return { ...p, description, tags: tags ?? [] };
+                }));
+            }
+            setPlannedDialogState(null);
+            if (tags?.length > 0) {
+                setLastUsedTags(tags);
+                saveTags(tags)
+                    .then(() => loadTags().then((t) => setAllTags(t)))
+                    .catch((saveTagsErr) => console.error("failed to save tags:", saveTagsErr));
+            }
+        } catch (error) {
+            console.error("failed to save planned intel:", error);
+            setError("Failed to save note — please try again.", error);
+        }
+    };
+
+    const onDeletePlannedIntel = async () => {
+        const intelPoint = plannedDialogState?.intelPoint;
+        if (!intelPoint) return;
+        try {
+            await deleteIntel(intelPoint);
+            setIntelPoints((prev) => prev.filter((p) => p.key !== intelPoint.key));
+            setPlannedDialogState(null);
+        } catch (error) {
+            console.error("failed to delete planned intel:", error);
+            setError("Failed to delete note — please try again.", error);
+        }
     };
 
     const onZoomToMe = () => {
@@ -363,6 +453,8 @@ export default function Rover() {
                     onDeleteConfirmedIntel={onDeleteConfirmedIntel}
                     onBoundsChange={onBoundsChange}
                     onError={setErrorMessage}
+                    onAddPlannedIntel={onAddPlannedIntel}
+                    onEditPlannedIntel={onEditPlannedIntel}
                     zoomToPositionSignal={zoomToPositionSignal}
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
                     geolocationIsEnabled={geolocationIsEnabled} />
@@ -405,6 +497,16 @@ export default function Rover() {
                                         onIntelCancel={() => setIntelIsOpen(false)}
                                         tagSuggestions={allTags}
                                         initialTags={lastUsedTags} />) }
+            { plannedDialogState && (
+                <PlannedDialog
+                    mode={plannedDialogState.mode}
+                    intelPoint={plannedDialogState.mode === "edit" ? plannedDialogState.intelPoint : null}
+                    tagSuggestions={allTags}
+                    initialTags={plannedDialogState.mode === "edit" ? (plannedDialogState.intelPoint.tags ?? []) : lastUsedTags}
+                    onSave={onSavePlannedIntel}
+                    onCancel={() => setPlannedDialogState(null)}
+                    onDelete={plannedDialogState.mode === "edit" ? onDeletePlannedIntel : null} />
+            )}
         </div>
     )
 }

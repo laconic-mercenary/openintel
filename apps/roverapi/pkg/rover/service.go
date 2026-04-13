@@ -127,6 +127,29 @@ func (service *RoverService) GetPrivateIntelImageURL(ctx context.Context, rowKey
 	return imageURL, nil
 }
 
+func (service *RoverService) UpdatePrivateIntel(ctx context.Context, emailHash, geohash, rowKey string, intel storage.PrivateIntel) error {
+	log.Trace().Msg("UpdatePrivateIntel")
+	if validation.IsEmptyStr(emailHash) {
+		return ErrEmailHashRequired
+	}
+	if validation.IsEmptyStr(geohash) {
+		return ErrGeohashRequired
+	}
+	if validation.IsEmptyStr(rowKey) {
+		return ErrKeyRequired
+	}
+	if validation.IsEmptyStr(intel.EncryptedPayload) {
+		return ErrEncryptedPayloadRequired
+	}
+	partitionKey := emailHash + geohash
+	updateErr := service.metadataRepository.UpdatePrivateIntelMetadata(ctx, partitionKey, rowKey, intel)
+	if updateErr != nil {
+		log.Error().Err(updateErr).Str("rowKey", rowKey).Msg("error updating private intel")
+		return fmt.Errorf("failed to update intel: %w", updateErr)
+	}
+	return nil
+}
+
 func (service *RoverService) DeletePrivateIntel(ctx context.Context, emailHash, geohash, rowKey string) error {
 	log.Trace().Msg("DeletePrivateIntel")
 	if validation.IsEmptyStr(emailHash) {
