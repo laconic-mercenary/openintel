@@ -2,7 +2,15 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+//
+// consts and globals
+
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 //

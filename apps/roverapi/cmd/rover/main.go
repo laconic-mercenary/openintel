@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -205,6 +206,10 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 
 		deleteErr := roverService.DeletePrivateIntel(request.Context(), emailHash, geohash, key)
 		if deleteErr != nil {
+			if errors.Is(deleteErr, storage.ErrNotFound) {
+				server.RespondWithError(writer, http.StatusNotFound, deleteErr, "intel not found")
+				return
+			}
 			log.Error().Err(deleteErr).Msg("failed to delete intel")
 			server.RespondWithError(writer, http.StatusInternalServerError, deleteErr, "failed to delete intel")
 			return

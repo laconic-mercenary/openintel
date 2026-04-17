@@ -12,6 +12,13 @@ import (
 )
 
 //
+// consts and globals
+
+const (
+	tableErrResourceNotFound = "ResourceNotFound"
+)
+
+//
 // types
 
 type intelTableEntity struct {
@@ -139,6 +146,10 @@ func (repository *AZPrivateIntelRepository) DeletePrivateIntelMetadata(ctx conte
 		IfMatch: &etag,
 	})
 	if deleteErr != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(deleteErr, &respErr) && respErr.ErrorCode == tableErrResourceNotFound {
+			return fmt.Errorf("%w", ErrNotFound)
+		}
 		log.Error().Err(deleteErr).Str("partitionKey", partitionKey).Str("rowKey", rowKey).Msg("error deleting intel entity from table")
 		return deleteErr
 	}

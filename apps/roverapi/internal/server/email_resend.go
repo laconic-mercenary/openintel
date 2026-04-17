@@ -25,7 +25,7 @@ func NewResendEmailService(apiKey string) EmailService {
 // methods
 
 func (s *ResendEmailService) SendEmail(from, to, text string) error {
-	log.Trace().Str("from", from).Str("to", to).Msg("SendEmail")
+	log.Trace().Str("from", from).Msg("SendEmail")
 	params := &resend.SendEmailRequest{
 		From:    from,
 		To:      []string{to},
@@ -34,7 +34,7 @@ func (s *ResendEmailService) SendEmail(from, to, text string) error {
 	}
 	_, sendErr := s.client.Emails.Send(params)
 	if sendErr != nil {
-		log.Error().Err(sendErr).Str("to", to).Msg("failed to send email via resend")
+		log.Error().Err(sendErr).Msg("failed to send email via resend")
 		return sendErr
 	}
 	return nil

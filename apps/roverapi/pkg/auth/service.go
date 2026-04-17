@@ -197,10 +197,7 @@ func (service *AuthService) VerifyLoginCode(email string, userProvidedCode strin
 		return false, rateLimitErr
 	}
 	if rateLimitResult == server.RateLimitTriggered {
-		// prefer to not log emails or tokens at any time - but this log
-		// would be important in identifying abuse and updating our blocklists
 		log.Warn().
-			Str("email", email).
 			Uint("maxAllowedAttempts", service.rateLimiter.MaxAttempts()).
 			Uint("attemptsWindowSeconds", service.rateLimiter.AttemptsWindowSeconds()).
 			Uint("disableDuration", service.rateLimiter.DisableDurationSeconds()).
