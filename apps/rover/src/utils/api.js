@@ -68,7 +68,11 @@ export const deleteIntel = async (intelPoint) => {
     const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
         method: "DELETE",
     });
+    if (response.status === 404) {
+        return { alreadyDeleted: true };
+    }
     if (!response.ok) {
         throw new Error(`failed to delete intel: ${response.status}`);
     }
+    return { alreadyDeleted: false };
 };

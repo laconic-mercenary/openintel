@@ -47,6 +47,7 @@ export default function Rover() {
     const [allTags, setAllTags] = useState([]);
     const [lastUsedTags, setLastUsedTags] = useState([]);
     const [plannedDialogState, setPlannedDialogState] = useState(null);
+    const [keyLoadFailed, setKeyLoadFailed] = useState(false);
 
     // References
 
@@ -54,6 +55,7 @@ export default function Rover() {
     const positionRef = useRef(position);
     const cryptoKeyRef = useRef(cryptoKey);
     const decryptionWarningShownRef = useRef(false);
+    const hasAutoZoomedRef = useRef(false);
 
     // Effects
 
@@ -76,13 +78,23 @@ export default function Rover() {
                     navigate(loginPath);
                     return;
                 }
-                return loadKey().then((key) => {
-                    if (key) {
-                        setCryptoKey(key);
-                    } else {
+                return loadKey()
+                    .then((key) => {
+                        if (key) {
+                            setCryptoKey(key);
+                        } else {
+                            setEncSalt(salt);
+                        }
+                    })
+                    // Exception: some browsers (e.g. Brave with Shields) block IndexedDB,
+                    // causing openDB() to reject with a SecurityError. Fall back to password
+                    // entry so the user is never left on a blank screen. saveKey() will also
+                    // be skipped in EncryptionSetup when keyLoadFailed is true.
+                    .catch((loadKeyErr) => {
+                        console.error("failed to load key from indexeddb:", loadKeyErr);
+                        setKeyLoadFailed(true);
                         setEncSalt(salt);
-                    }
-                });
+                    });
             })
             .catch(console.error);
     }, []);
@@ -115,6 +127,10 @@ export default function Rover() {
     const onPositionReady = (position) => {
         positionRef.current = position;
         setPosition(position);
+        if (!hasAutoZoomedRef.current && geolocationIsEnabled) {
+            hasAutoZoomedRef.current = true;
+            setZoomToPositionSignal((previous) => previous + 1);
+        }
     };
 
     const setError = (message, error) => {
@@ -227,10 +243,11 @@ export default function Rover() {
 
     const onDeleteConfirmedIntel = async (intelPoint) => {
         try {
-            await deleteIntel(intelPoint);
-            setIntelPoints((previous) => {
-                return previous.filter((point) => point.key !== intelPoint.key);
-            });
+            const { alreadyDeleted } = await deleteIntel(intelPoint);
+            setIntelPoints((previous) => previous.filter((point) => point.key !== intelPoint.key));
+            if (alreadyDeleted) {
+                setError("Intel was already deleted elsewhere — removed from map.", null);
+            }
         } catch (error) {
             console.error('failed to delete intel:', error);
             setError("Failed to delete intel — please try again.", error);
@@ -370,9 +387,12 @@ export default function Rover() {
         const intelPoint = plannedDialogState?.intelPoint;
         if (!intelPoint) return;
         try {
-            await deleteIntel(intelPoint);
+            const { alreadyDeleted } = await deleteIntel(intelPoint);
             setIntelPoints((prev) => prev.filter((p) => p.key !== intelPoint.key));
             setPlannedDialogState(null);
+            if (alreadyDeleted) {
+                setError("Note was already deleted elsewhere — removed from map.", null);
+            }
         } catch (error) {
             console.error("failed to delete planned intel:", error);
             setError("Failed to delete note — please try again.", error);
@@ -397,7 +417,7 @@ export default function Rover() {
 
     if (!cryptoKey) {
         if (!encSalt) return null;
-        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} />;
+        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} keyLoadFailed={keyLoadFailed} />;
     }
 
     return (

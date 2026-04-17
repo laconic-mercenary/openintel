@@ -15,7 +15,7 @@ function meetsAll(password) {
     return requirements.every((r) => r.test(password));
 }
 
-export default function EncryptionSetup({ salt, onKeyReady }) {
+export default function EncryptionSetup({ salt, onKeyReady, keyLoadFailed = false }) {
     const [password, setPassword] = useState('');
     const [persist, setPersist] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -28,7 +28,9 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
         setError(null);
         try {
             const key = await deriveKey(password, salt);
-            await saveKey(key, persist);
+            if (!keyLoadFailed) {
+                await saveKey(key, persist);
+            }
             onKeyReady(key);
         } catch (err) {
             setError('Failed to set up encryption. Please try again.');
@@ -42,6 +44,11 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
         <div className="enc-setup-overlay">
             <div className="enc-setup-panel">
                 <h2>Encryption Password</h2>
+                { keyLoadFailed && (
+                    <div className="enc-setup-storage-notice">
+                        ⓘ Browser storage is restricted — your key cannot be saved. You may need to enter your password each session. This is often caused by browser privacy settings.
+                    </div>
+                )}
                 <p className="enc-setup-info">
                     Enter your encryption password to access your intel. If this is your first time, choose a password now — it is never sent to the server.
                 </p>
@@ -64,14 +71,16 @@ export default function EncryptionSetup({ salt, onKeyReady }) {
                             </li>
                         ))}
                     </ul>
-                    <label className="enc-setup-persist">
-                        <input
-                            type="checkbox"
-                            checked={persist}
-                            onChange={(e) => setPersist(e.target.checked)}
-                        />
-                        Remember on this device
-                    </label>
+                    { !keyLoadFailed && (
+                        <label className="enc-setup-persist">
+                            <input
+                                type="checkbox"
+                                checked={persist}
+                                onChange={(e) => setPersist(e.target.checked)}
+                            />
+                            Remember on this device
+                        </label>
+                    )}
                     {error && <p className="enc-setup-error">{error}</p>}
                     <button type="submit" disabled={!meetsAll(password) || loading}>
                         {loading ? 'Setting up...' : 'Continue'}
