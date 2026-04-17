@@ -152,7 +152,7 @@ html, body {
 }
 
 .menu-pane.open {
-    max-height: 200px;
+    max-height: 320px;
     padding: 1rem 1.5rem;
     overflow-y: auto;
 }
@@ -176,6 +176,19 @@ html, body {
 
 .pane-link:hover {
     color: var(--parchment);
+}
+
+.pane-feature {
+    color: rgba(232, 213, 176, 0.85) !important;
+    letter-spacing: 0.02em;
+}
+
+.pane-divider {
+    text-align: center;
+    color: rgba(196, 168, 122, 0.3) !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.2em;
+    margin: 0.25rem 0 !important;
 }
 
 .pane-warning {
