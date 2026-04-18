@@ -93,27 +93,35 @@
   margin-bottom: 12px;
 }
 
-.intel-submit-w-photo,
-.intel-submit-wo-photo {
-  width: 100%;
+.intel-submit-row {
   display: flex;
-  justify-content: center;
-  border: 1px solid #c0c0c0;
-  border-radius: 6px;
-  background: #2a2a2a;
-  color: #f2f2f2;
-  padding: 10px 12px;
-  font-weight: 600;
+  gap: 10px;
 }
 
-.intel-submit-wo-photo {
-  margin-top: 10px;
-}
-
-.intel-submit-label {
+.intel-btn-memory,
+.intel-btn-cloud {
+  flex: 1;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.intel-btn-memory {
+  border: 1px solid #606060;
+  background: #2a2a2a;
+  color: #c0c0c0;
+}
+
+.intel-btn-cloud {
+  border: 1px solid #4a8fdd;
+  background: #1a3a5c;
+  color: #93c5fd;
 }
 
 button.intel-cancel {
@@ -131,6 +139,7 @@ button.intel-cancel {
   display: grid;
   justify-content: center;
 }
+
 
 .intel-error {
   color: #b00020;

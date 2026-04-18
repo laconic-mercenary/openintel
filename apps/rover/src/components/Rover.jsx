@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, Locate, LocateFixed, LocateOff, LogOut } from "lucide-react";
+import { Crosshair, Locate, LocateFixed, LocateOff, LogOut, Search } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
 import EncryptionSetup from "./EncryptionSetup.jsx";
 import PlannedDialog from "./PlannedDialog.jsx";
+import LocationSearch from "./LocationSearch.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
@@ -48,6 +49,8 @@ export default function Rover() {
     const [lastUsedTags, setLastUsedTags] = useState([]);
     const [plannedDialogState, setPlannedDialogState] = useState(null);
     const [keyLoadFailed, setKeyLoadFailed] = useState(false);
+    const [locationSearchIsOpen, setLocationSearchIsOpen] = useState(false);
+    const [flyToLocationSignal, setFlyToLocationSignal] = useState(null);
 
     // References
 
@@ -120,6 +123,7 @@ export default function Rover() {
         setIntelPoints((previous) => [...previous, intelCandidate]);
         setZoomToNewIntelSignal((previous) => previous + 1);
         setIntelIsOpen(false);
+        return intelCandidate;
     };
 
     // Events
@@ -149,14 +153,15 @@ export default function Rover() {
         setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error);
     };
 
-    const onIntelReady = (description, b64Image, tags) => {
+    const onIntelReady = (description, b64Image, tags, saveToCloud) => {
         if (!geolocationIsEnabled) {
             console.warn("geolocation is disabled - will not store intel");
             return;
         }
         const latestPosition = positionRef.current;
         if (latestPosition) {
-            addIntelPoint(description, b64Image, latestPosition.coords, tags);
+            const candidate = addIntelPoint(description, b64Image, latestPosition.coords, tags);
+            if (saveToCloud) onKeepIntel(candidate);
             return;
         }
 
@@ -169,7 +174,8 @@ export default function Rover() {
             (currentPosition) => {
                 positionRef.current = currentPosition;
                 setPosition(currentPosition);
-                addIntelPoint(description, b64Image, currentPosition.coords, tags);
+                const candidate = addIntelPoint(description, b64Image, currentPosition.coords, tags);
+                if (saveToCloud) onKeepIntel(candidate);
             },
             (error) => {
                 console.error(error);
@@ -477,6 +483,7 @@ export default function Rover() {
                     onEditPlannedIntel={onEditPlannedIntel}
                     zoomToPositionSignal={zoomToPositionSignal}
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
+                    flyToLocationSignal={flyToLocationSignal}
                     geolocationIsEnabled={geolocationIsEnabled} />
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
@@ -505,6 +512,13 @@ export default function Rover() {
                             Geolocation
                         </span>
                     </button>
+                    <button className="rover-menu-item"
+                            onClick={() => { setLocationSearchIsOpen(true); setMenuIsOpen(false); }}>
+                        <span className="rover-menu-item-label">
+                            <Search className="rover-menu-item-icon" aria-hidden="true" />
+                            Search Location
+                        </span>
+                    </button>
                     <button className="rover-menu-item" onClick={() => { onLogout(); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
                             <LogOut className="rover-menu-item-icon" aria-hidden="true" />
@@ -513,6 +527,11 @@ export default function Rover() {
                     </button>
                 </nav>
             </div>
+            { locationSearchIsOpen && (
+                <LocationSearch
+                    onResult={({ lat, lon }) => { setFlyToLocationSignal({ lat, lon }); setLocationSearchIsOpen(false); }}
+                    onCancel={() => setLocationSearchIsOpen(false)} />
+            )}
             { intelIsOpen && (<Intel onIntelReady={onIntelReady}
                                         onIntelCancel={() => setIntelIsOpen(false)}
                                         tagSuggestions={allTags}

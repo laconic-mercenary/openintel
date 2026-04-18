@@ -13,7 +13,7 @@ import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, zoomToPositionSignal, zoomToNewIntelSignal }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal }) {
     
     // Consts
     
@@ -300,6 +300,13 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         if (zoomToNewIntelSignal === 0) return;
         sendMapToLatest(intelPointsRef.current);
     }, [zoomToNewIntelSignal]);
+
+    useEffect(() => {
+        if (!flyToLocationSignal) return;
+        const map = roverMapRef.current;
+        if (!map) return;
+        map.flyTo({ center: [flyToLocationSignal.lon, flyToLocationSignal.lat], zoom: zoomInLevel });
+    }, [flyToLocationSignal]);
 
     // Methods
 

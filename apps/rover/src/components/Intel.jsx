@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera, CameraOff, CheckCircle } from "lucide-react";
+import { Camera, CheckCircle, Smartphone, Cloud } from "lucide-react";
 import TagInput from "./TagInput.jsx";
 import CameraCapture from "./CameraCapture.jsx";
 
@@ -33,7 +33,7 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
         setCameraIsOpen(false);
     };
 
-    const onSubmit = () => {
+    const onSubmit = (saveToCloud) => {
         const trimmedDescription = description.trim();
         if (trimmedDescription.length > descriptionMaxLength) {
             setUserError(`Description must be ${descriptionMaxLength} characters or fewer.`);
@@ -44,7 +44,7 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
             return;
         }
         setUserError("");
-        intelReadyRef.current?.(trimmedDescription, capturedImage ?? null, tags);
+        intelReadyRef.current?.(trimmedDescription, capturedImage ?? null, tags, saveToCloud);
     };
 
     const onCancel = () => {
@@ -87,14 +87,14 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
                           placeholder="Add description here (if any)"
                           rows={4} />
 
-                <button className="intel-submit-w-photo" onClick={onSubmit}>
-                    <span className="intel-submit-label">
-                        { capturedImage
-                            ? <><Camera size={16} aria-hidden="true" /> Submit With Photo</>
-                            : <><CameraOff size={16} aria-hidden="true" /> Submit Without Photo</>
-                        }
-                    </span>
-                </button>
+                <div className="intel-submit-row">
+                    <button className="intel-btn-memory" onClick={() => onSubmit(false)}>
+                        <Smartphone size={15} aria-hidden="true" /> Save to Memory
+                    </button>
+                    <button className="intel-btn-cloud" onClick={() => onSubmit(true)}>
+                        <Cloud size={15} aria-hidden="true" /> Save to Cloud
+                    </button>
+                </div>
             </div>
         </div>
     );
