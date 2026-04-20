@@ -1,0 +1,58 @@
+.search-intel-panel {
+    width: min(520px, 90vw);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.search-intel-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #ccc;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.75rem;
+}
+
+.search-intel-hint {
+    font-size: 0.78rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+}
+
+.search-intel-text-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.search-intel-text-input {
+    width: 100%;
+    background: #0d0d0d;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 1rem;
+    padding: 0.625rem 0.75rem;
+    box-sizing: border-box;
+}
+
+.search-intel-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    align-self: flex-end;
+    background: #1a3a5c;
+    border: 1px solid #4a8fdd;
+    border-radius: 4px;
+    color: #93c5fd;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.5rem 1.25rem;
+    cursor: pointer;
+}
+
+.search-intel-submit:hover {
+    background: #1e4570;
+}

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, Locate, LocateFixed, LocateOff, LogOut, Search } from "lucide-react";
+import { Crosshair, Locate, LocateFixed, LocateOff, LogOut, Globe, SlidersHorizontal } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
 import EncryptionSetup from "./EncryptionSetup.jsx";
 import PlannedDialog from "./PlannedDialog.jsx";
 import LocationSearch from "./LocationSearch.jsx";
+import SearchIntel from "./SearchIntel.jsx";
+import ProcessingModal from "./ProcessingModal.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
@@ -23,6 +25,7 @@ export default function Rover() {
 
     const loginPath = "/login";
     const minIntelQueryZoom = 10;
+    const secretTag = "secret";
     const geolocationPositionTimeout = 5000;
     const geolocationOptions = {
         enableHighAccuracy: true,
@@ -51,6 +54,9 @@ export default function Rover() {
     const [keyLoadFailed, setKeyLoadFailed] = useState(false);
     const [locationSearchIsOpen, setLocationSearchIsOpen] = useState(false);
     const [flyToLocationSignal, setFlyToLocationSignal] = useState(null);
+    const [searchIntelIsOpen, setSearchIntelIsOpen] = useState(false);
+    const [intelFilter, setIntelFilter] = useState({ tags: [], text: "" });
+    const [cloudSaveMessage, setCloudSaveMessage] = useState(null);
 
     // References
 
@@ -103,6 +109,21 @@ export default function Rover() {
     }, []);
 
     // Methods
+
+    const applyIntelFilter = (point) => {
+        const tags = point.tags ?? [];
+        if (intelFilter.tags.length === 0) {
+            if (tags.includes(secretTag)) return false;
+        } else {
+            if (!tags.some((t) => intelFilter.tags.includes(t))) return false;
+        }
+        if (intelFilter.text) {
+            const needle = intelFilter.text.toLowerCase();
+            const haystack = `${point.description ?? ""} ${tags.join(" ")}`.toLowerCase();
+            if (!haystack.includes(needle)) return false;
+        }
+        return true;
+    };
 
     const newIntelCandidate = (description, b64image, coords, tags) => {
         return {
@@ -221,7 +242,7 @@ export default function Rover() {
                 encryptedPayload,
                 encryptedImage,
                 timestamp: intelPoint.timestamp,
-            });
+            }, (attempt) => setCloudSaveMessage(attempt === 0 ? "Saving Intel..." : "Trying again..."));
 
             setIntelPoints((previous) => previous.map((point) => {
                 if (point.key !== intelPoint.key) return point;
@@ -243,7 +264,9 @@ export default function Rover() {
             }
         } catch (error) {
             console.error('failed to store intel:', error);
-            setError("Failed to save intel — please try again.", error);
+            setError("Couldn't save to cloud — intel kept in memory. Tap the marker to retry.", error);
+        } finally {
+            setCloudSaveMessage(null);
         }
     };
 
@@ -472,7 +495,7 @@ export default function Rover() {
                         onPositionError={onPositionError} 
                         geolocationIsEnabled={geolocationIsEnabled} />
             <MapView position={position}
-                    intelPoints={intelPoints}
+                    intelPoints={intelPoints.filter(applyIntelFilter)}
                     cryptoKey={cryptoKey}
                     onKeepIntel={onKeepIntel}
                     onDiscardIntel={onDiscardIntel}
@@ -515,8 +538,15 @@ export default function Rover() {
                     <button className="rover-menu-item"
                             onClick={() => { setLocationSearchIsOpen(true); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
-                            <Search className="rover-menu-item-icon" aria-hidden="true" />
+                            <Globe className="rover-menu-item-icon" aria-hidden="true" />
                             Search Location
+                        </span>
+                    </button>
+                    <button className="rover-menu-item"
+                            onClick={() => { setSearchIntelIsOpen(true); setMenuIsOpen(false); }}>
+                        <span className="rover-menu-item-label">
+                            <SlidersHorizontal className="rover-menu-item-icon" aria-hidden="true" />
+                            Search Intel
                         </span>
                     </button>
                     <button className="rover-menu-item" onClick={() => { onLogout(); setMenuIsOpen(false); }}>
@@ -527,10 +557,19 @@ export default function Rover() {
                     </button>
                 </nav>
             </div>
+            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} /> }
             { locationSearchIsOpen && (
                 <LocationSearch
                     onResult={({ lat, lon }) => { setFlyToLocationSignal({ lat, lon }); setLocationSearchIsOpen(false); }}
                     onCancel={() => setLocationSearchIsOpen(false)} />
+            )}
+            { searchIntelIsOpen && (
+                <SearchIntel
+                    filterTags={intelFilter.tags}
+                    allTags={allTags}
+                    onTagsChange={(tags) => setIntelFilter((prev) => ({ ...prev, tags }))}
+                    onTextSearch={(text) => { setIntelFilter((prev) => ({ ...prev, text })); setSearchIntelIsOpen(false); }}
+                    onClose={() => setSearchIntelIsOpen(false)} />
             )}
             { intelIsOpen && (<Intel onIntelReady={onIntelReady}
                                         onIntelCancel={() => setIntelIsOpen(false)}

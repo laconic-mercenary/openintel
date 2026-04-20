@@ -1,5 +1,29 @@
+// consts and globals
+
+const requestTimeoutMs = 10000;
+const requestMaxRetries = 3;
+
+// functions
+
+const fetchWithTimeout = async (url, options = {}, onAttempt) => {
+    let lastErr;
+    for (let attempt = 0; attempt < requestMaxRetries; attempt++) {
+        onAttempt?.(attempt);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } catch (fetchErr) {
+            lastErr = fetchErr;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    throw lastErr;
+};
+
 export const getSession = async () => {
-    const response = await fetch('/auth/me');
+    const response = await fetchWithTimeout('/auth/me');
     if (response.status === 401) return null;
     if (!response.ok) {
         throw new Error(`failed to get session: ${response.status}`);
@@ -8,8 +32,8 @@ export const getSession = async () => {
     return salt;
 };
 
-export const storeIntel = async (intelPoint) => {
-    const response = await fetch("/rover/intel", {
+export const storeIntel = async (intelPoint, onAttempt) => {
+    const response = await fetchWithTimeout("/rover/intel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -19,7 +43,7 @@ export const storeIntel = async (intelPoint) => {
             image: intelPoint.encryptedImage,
             timestamp: intelPoint.timestamp,
         }),
-    });
+    }, onAttempt);
     if (!response.ok) {
         throw new Error(`failed to store intel: ${response.status}`);
     }
@@ -28,7 +52,7 @@ export const storeIntel = async (intelPoint) => {
 
 export const listIntel = async (minLat, minLon, maxLat, maxLon) => {
     const params = new URLSearchParams({ minLat, minLon, maxLat, maxLon });
-    const response = await fetch(`/rover/intel?${params}`);
+    const response = await fetchWithTimeout(`/rover/intel?${params}`);
     if (!response.ok) {
         throw new Error(`failed to list intel: ${response.status}`);
     }
@@ -36,7 +60,7 @@ export const listIntel = async (minLat, minLon, maxLat, maxLon) => {
 };
 
 export const getIntelImageUrl = async (intelPoint) => {
-    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`);
+    const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`);
     if (!response.ok) {
         throw new Error(`failed to get intel image url: ${response.status}`);
     }
@@ -45,14 +69,14 @@ export const getIntelImageUrl = async (intelPoint) => {
 };
 
 export const logout = async () => {
-    const response = await fetch('/auth/logout', { method: 'POST' });
+    const response = await fetchWithTimeout('/auth/logout', { method: 'POST' });
     if (!response.ok) {
         throw new Error(`failed to logout: ${response.status}`);
     }
 };
 
 export const updateIntel = async (intelPoint) => {
-    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
+    const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -65,7 +89,7 @@ export const updateIntel = async (intelPoint) => {
 };
 
 export const deleteIntel = async (intelPoint) => {
-    const response = await fetch(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
+    const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`, {
         method: "DELETE",
     });
     if (response.status === 404) {

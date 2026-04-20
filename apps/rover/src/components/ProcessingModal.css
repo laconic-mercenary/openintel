@@ -1,0 +1,73 @@
+.processing-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+}
+
+.processing-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* Radar */
+
+.processing-radar {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.processing-radar-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.processing-radar-ring-1 { width: 120px; height: 120px; }
+.processing-radar-ring-2 { width: 80px;  height: 80px;  }
+.processing-radar-ring-3 { width: 40px;  height: 40px;  }
+
+.processing-radar-sweep {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50%;
+    height: 2px;
+    transform-origin: left center;
+    background: linear-gradient(to right, rgba(74, 222, 128, 0.8), transparent);
+    animation: radar-sweep 2s linear infinite;
+}
+
+.processing-radar-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background: rgba(74, 222, 128, 0.9);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes radar-sweep {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* Message */
+
+.processing-message {
+    color: rgba(74, 222, 128, 0.85);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+}
