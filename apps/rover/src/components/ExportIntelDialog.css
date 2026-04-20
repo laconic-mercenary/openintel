@@ -1,0 +1,59 @@
+.export-intel-panel {
+    width: min(480px, 90vw);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.export-intel-body {
+    font-size: 0.875rem;
+    color: #ccc;
+    line-height: 1.6;
+}
+
+.export-intel-body strong {
+    color: #fff;
+}
+
+.export-intel-warning {
+    color: #f97316;
+    border: 1px solid rgba(249, 115, 22, 0.35);
+    border-radius: 4px;
+    background: rgba(249, 115, 22, 0.07);
+    padding: 0.5rem 0.75rem;
+}
+
+.export-intel-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 0.5rem;
+}
+
+.export-intel-cancel {
+    background: #2a2a2a;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.export-intel-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #1a3a5c;
+    border: 1px solid #4a8fdd;
+    border-radius: 4px;
+    color: #93c5fd;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.5rem 1.25rem;
+    cursor: pointer;
+}
+
+.export-intel-confirm:hover {
+    background: #1e4570;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, Locate, LocateFixed, LocateOff, LogOut, Globe, SlidersHorizontal } from "lucide-react";
+import { Crosshair, FileUp, Locate, LocateFixed, LocateOff, LogOut, Globe, SlidersHorizontal } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
@@ -9,6 +9,9 @@ import PlannedDialog from "./PlannedDialog.jsx";
 import LocationSearch from "./LocationSearch.jsx";
 import SearchIntel from "./SearchIntel.jsx";
 import ProcessingModal from "./ProcessingModal.jsx";
+import ExportIntelDialog from "./ExportIntelDialog.jsx";
+import ImportIntelDialog from "./ImportIntelDialog.jsx";
+import LocateArrow from "./LocateArrow.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
@@ -57,6 +60,9 @@ export default function Rover() {
     const [searchIntelIsOpen, setSearchIntelIsOpen] = useState(false);
     const [intelFilter, setIntelFilter] = useState({ tags: [], text: "" });
     const [cloudSaveMessage, setCloudSaveMessage] = useState(null);
+    const [exportIntelPoint, setExportIntelPoint] = useState(null);
+    const [importIsOpen, setImportIsOpen] = useState(false);
+    const [locateIntelPoint, setLocateIntelPoint] = useState(null);
 
     // References
 
@@ -65,6 +71,7 @@ export default function Rover() {
     const cryptoKeyRef = useRef(cryptoKey);
     const decryptionWarningShownRef = useRef(false);
     const hasAutoZoomedRef = useRef(false);
+    const mapCenterRef = useRef(null);
 
     // Effects
 
@@ -332,6 +339,53 @@ export default function Rover() {
         }
     };
 
+    const onImportIntel = (intelPoint, hasLocation) => {
+        setImportIsOpen(false);
+        if (hasLocation) {
+            const candidate = newIntelCandidate(
+                intelPoint.description,
+                intelPoint.b64image,
+                { latitude: intelPoint.latitude, longitude: intelPoint.longitude, accuracy: intelPoint.accuracy ?? 0 },
+                intelPoint.tags,
+            );
+            setIntelPoints((previous) => [...previous, candidate]);
+            setZoomToNewIntelSignal((previous) => previous + 1);
+        } else {
+            setLocateIntelPoint(intelPoint);
+        }
+    };
+
+    const onLocateConfirm = () => {
+        const center = mapCenterRef.current?.();
+        if (!center) {
+            console.warn("onLocateConfirm: map center not available");
+            return;
+        }
+        const candidate = newIntelCandidate(
+            locateIntelPoint.description,
+            locateIntelPoint.b64image,
+            { latitude: center.lat, longitude: center.lng, accuracy: 0 },
+            locateIntelPoint.tags,
+        );
+        setLocateIntelPoint(null);
+        setIntelPoints((previous) => [...previous, { ...candidate, manualLocation: true }]);
+    };
+
+    const onSaveIntelToFile = (description, b64image, tags) => {
+        const coords = geolocationIsEnabled ? (positionRef.current?.coords ?? null) : null;
+        setExportIntelPoint({
+            description,
+            b64image,
+            tags,
+            timestamp: currentTimestampMillis(),
+            key: crypto.randomUUID(),
+            latitude: coords?.latitude ?? null,
+            longitude: coords?.longitude ?? null,
+            accuracy: coords?.accuracy ?? null,
+        });
+        setIntelIsOpen(false);
+    };
+
     const onDiscardIntel = (intelPoint) => {
         setIntelPoints((previous) => {
             return previous.filter((point) => point.key !== intelPoint.key)
@@ -504,9 +558,11 @@ export default function Rover() {
                     onError={setErrorMessage}
                     onAddPlannedIntel={onAddPlannedIntel}
                     onEditPlannedIntel={onEditPlannedIntel}
+                    onExportIntel={setExportIntelPoint}
                     zoomToPositionSignal={zoomToPositionSignal}
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
                     flyToLocationSignal={flyToLocationSignal}
+                    mapCenterRef={mapCenterRef}
                     geolocationIsEnabled={geolocationIsEnabled} />
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
@@ -549,6 +605,13 @@ export default function Rover() {
                             Search Intel
                         </span>
                     </button>
+                    <button className="rover-menu-item"
+                            onClick={() => { setImportIsOpen(true); setMenuIsOpen(false); }}>
+                        <span className="rover-menu-item-label">
+                            <FileUp className="rover-menu-item-icon" aria-hidden="true" />
+                            Import Intel
+                        </span>
+                    </button>
                     <button className="rover-menu-item" onClick={() => { onLogout(); setMenuIsOpen(false); }}>
                         <span className="rover-menu-item-label">
                             <LogOut className="rover-menu-item-icon" aria-hidden="true" />
@@ -558,6 +621,17 @@ export default function Rover() {
                 </nav>
             </div>
             { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} /> }
+            { importIsOpen && (
+                <ImportIntelDialog
+                    onImport={onImportIntel}
+                    onCancel={() => setImportIsOpen(false)} />
+            )}
+            { locateIntelPoint && <LocateArrow onConfirm={onLocateConfirm} /> }
+            { exportIntelPoint && (
+                <ExportIntelDialog
+                    intelPoint={exportIntelPoint}
+                    onCancel={() => setExportIntelPoint(null)} />
+            )}
             { locationSearchIsOpen && (
                 <LocationSearch
                     onResult={({ lat, lon }) => { setFlyToLocationSignal({ lat, lon }); setLocationSearchIsOpen(false); }}
@@ -573,6 +647,7 @@ export default function Rover() {
             )}
             { intelIsOpen && (<Intel onIntelReady={onIntelReady}
                                         onIntelCancel={() => setIntelIsOpen(false)}
+                                        onSaveToFile={onSaveIntelToFile}
                                         tagSuggestions={allTags}
                                         initialTags={lastUsedTags} />) }
             { plannedDialogState && (

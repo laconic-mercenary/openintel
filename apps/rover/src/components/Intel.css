@@ -124,6 +124,22 @@
   color: #93c5fd;
 }
 
+.intel-btn-file {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #4a4a3a;
+  background: #2a2a1a;
+  color: #c8b96a;
+}
+
 button.intel-cancel {
   position: absolute;
   top: 1em;

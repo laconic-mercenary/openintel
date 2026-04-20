@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
-import { Camera, CheckCircle, Smartphone, Cloud } from "lucide-react";
+import { Camera, CheckCircle, Smartphone, Cloud, FileDown } from "lucide-react";
 import TagInput from "./TagInput.jsx";
 import CameraCapture from "./CameraCapture.jsx";
 
 import "./Intel.css";
 
-export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = [], initialTags = [] }) {
+export default function Intel({ onIntelReady, onIntelCancel, onSaveToFile, tagSuggestions = [], initialTags = [] }) {
 
     // Consts
 
@@ -24,6 +24,7 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
 
     const intelReadyRef = useRef(onIntelReady);
     const intelCancelRef = useRef(onIntelCancel);
+    const saveToFileRef = useRef(onSaveToFile);
 
     // Methods
 
@@ -49,6 +50,16 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
 
     const onCancel = () => {
         intelCancelRef.current?.();
+    };
+
+    const onSaveToFileClick = () => {
+        const trimmedDescription = description.trim();
+        if (!capturedImage && trimmedDescription.length === 0) {
+            setUserError("Add a description or take a photo before saving.");
+            return;
+        }
+        setUserError("");
+        saveToFileRef.current?.(trimmedDescription, capturedImage ?? null, tags);
     };
 
     // DOM
@@ -95,6 +106,9 @@ export default function Intel({ onIntelReady, onIntelCancel, tagSuggestions = []
                         <Cloud size={15} aria-hidden="true" /> Save to Cloud
                     </button>
                 </div>
+                <button className="intel-btn-file" onClick={onSaveToFileClick}>
+                    <FileDown size={15} aria-hidden="true" /> Save to File
+                </button>
             </div>
         </div>
     );

@@ -1,0 +1,50 @@
+.import-intel-panel {
+    width: min(480px, 90vw);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.import-intel-body {
+    font-size: 0.875rem;
+    color: #ccc;
+    line-height: 1.6;
+}
+
+.import-intel-error {
+    font-size: 0.875rem;
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 4px;
+    background: rgba(248, 113, 113, 0.07);
+    padding: 0.5rem 0.75rem;
+}
+
+.import-intel-file-input {
+    display: none;
+}
+
+.import-intel-upload {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #1a3a5c;
+    border: 1px solid #4a8fdd;
+    border-radius: 4px;
+    color: #93c5fd;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.625rem 1.25rem;
+    cursor: pointer;
+    align-self: flex-start;
+}
+
+.import-intel-upload:hover:not(:disabled) {
+    background: #1e4570;
+}
+
+.import-intel-upload:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

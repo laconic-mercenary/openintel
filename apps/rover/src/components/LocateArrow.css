@@ -1,0 +1,47 @@
+.locate-arrow-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 500;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: calc(50vh - 48px);
+}
+
+.locate-arrow-pin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+.locate-arrow-svg {
+    width: 48px;
+    height: 48px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.locate-arrow-ok {
+    background: #C29A57;
+    border: 2px solid #2B2F35;
+    border-radius: 6px;
+    color: #1a1008;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 4px 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.locate-arrow-ok:hover {
+    background: #d4aa66;
+}
+
+.locate-arrow-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}

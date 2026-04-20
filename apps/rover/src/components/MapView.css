@@ -77,12 +77,17 @@
   );
 }
 
+.intel-point-actions-popup {
+  overflow: visible;
+}
+
 .intel-point-actions-popup .maplibregl-popup-content {
   padding: 8px;
   border: 1px solid #2b2f35;
   border-radius: 10px;
   background: #f5f2e8;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  overflow: visible;
 }
 
 .intel-point-actions-popup .maplibregl-popup-tip {
@@ -92,6 +97,7 @@
 .intel-point-actions {
   display: flex;
   gap: 8px;
+  width: fit-content;
 }
 
 .intel-point-action {
@@ -138,6 +144,11 @@
   background: #5c8cbf;
   color: #f4f8f2;
   white-space: nowrap;
+}
+
+.intel-point-action.export {
+  background: #5a7a5a;
+  color: #d4f0d4;
 }
 
 .intel-point-delete-confirm {

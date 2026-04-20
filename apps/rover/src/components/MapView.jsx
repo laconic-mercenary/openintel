@@ -13,7 +13,7 @@ import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef }) {
     
     // Consts
     
@@ -137,6 +137,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const intelPointsRef = useRef(intelPoints);
     const keepIntelRef = useRef(onKeepIntel);
     const discardIntelRef = useRef(onDiscardIntel);
+    const exportIntelRef = useRef(onExportIntel);
     const activeIntelActionsPopupRef = useRef(null);
     const activeIntelActionPointKeyRef = useRef(null);
     const activeIntelActionPopupTypeRef = useRef(null);
@@ -208,6 +209,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         discardIntelRef.current = onDiscardIntel;
     }, [onDiscardIntel]);
+
+    useEffect(() => {
+        exportIntelRef.current = onExportIntel;
+    }, [onExportIntel]);
 
     useEffect(() => {
         deleteConfirmedIntelRef.current = onDeleteConfirmedIntel;
@@ -344,6 +349,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         });
 
         roverMapRef.current = map;
+        if (mapCenterRef) mapCenterRef.current = () => roverMapRef.current?.getCenter();
     };
 
     const cleanupMap = () => {
@@ -472,15 +478,19 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
 
         const popupContent = createKeepDiscardPopup(
             () => {
-                // TODO send this new intel to the backend for 
+                // TODO send this new intel to the backend for
                 // validation and persistence
                 keepIntelRef.current?.(intelPoint);
                 removeIntelActionsPopup();
             },
             () => {
-                // no need for backend calls because new intel 
+                // no need for backend calls because new intel
                 // is not persisted
                 discardIntelRef.current?.(intelPoint);
+                removeIntelActionsPopup();
+            },
+            () => {
+                exportIntelRef.current?.(intelPoint);
                 removeIntelActionsPopup();
             },
         );
@@ -723,7 +733,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         activeIntelActionPopupTypeRef.current = null;
     };
 
-    const createKeepDiscardPopup = (onKeepClick, onDiscardClick) => {
+    const createKeepDiscardPopup = (onKeepClick, onDiscardClick, onExportClick) => {
         const wrapper = document.createElement("div");
         wrapper.className = "intel-point-actions";
 
@@ -745,7 +755,16 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             onDiscardClick();
         });
 
-        wrapper.append(keepButton, discardButton);
+        const exportButton = document.createElement("button");
+        exportButton.type = "button";
+        exportButton.className = "intel-point-action export";
+        exportButton.textContent = "Export";
+        exportButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onExportClick();
+        });
+
+        wrapper.append(keepButton, discardButton, exportButton);
         return wrapper;
     };
 
