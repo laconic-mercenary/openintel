@@ -235,3 +235,18 @@
   color: #5f6b71;
   font-size: 0.78rem;
 }
+
+.intel-review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.intel-review-tag {
+  background: #e8edf0;
+  color: #3a4a54;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+}

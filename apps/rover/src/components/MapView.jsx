@@ -1069,6 +1069,13 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                         <p className="intel-review-meta">
                             Captured: {reviewIntelTimestamp}
                         </p>
+                        {reviewIntelPoint.tags?.length > 0 && (
+                            <div className="intel-review-tags">
+                                {reviewIntelPoint.tags.map((tag) => (
+                                    <span key={tag} className="intel-review-tag">{tag}</span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
