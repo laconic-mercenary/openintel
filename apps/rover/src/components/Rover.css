@@ -246,6 +246,38 @@
   }
 }
 
+.rover-locate-btn,
+.rover-satellite-btn {
+    position: fixed;
+    right: 1rem;
+    z-index: 200;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(10, 10, 10, 0.7);
+    backdrop-filter: blur(6px);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.rover-locate-btn {
+    bottom: 1.5rem;
+}
+
+.rover-satellite-btn {
+    bottom: calc(1.5rem + 3.5rem + 0.6rem);
+}
+
+.rover-locate-btn:hover,
+.rover-satellite-btn:hover {
+    background: rgba(30, 30, 30, 0.85);
+}
+
 .geoloc-toggle {
     background-color: red;
     color: black;

@@ -13,14 +13,17 @@ import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
     
     // Consts
     
     const rasterTileSize = 256;
     const accuracyZonePointsCount = 20;
+    const rasterSourceID = "osm";
     const userSourceID = "user";
     const intelSourceID = "intel";
+    const streetTileUrl = "https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}.png";
+    const satelliteTileUrl = `https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${import.meta.env.VITE_MAPTILER_API_KEY}`;
     const markerLayerID = "intel-markers";
     const markerHoverCursor = "pointer";
     const intelActionsPopupOffset = 10;
@@ -48,11 +51,11 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const rasterStyle = {
         version: 8,
         sources: {
-            osm: {
+            [rasterSourceID]: {
                 type: "raster",
-                tiles: ["https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}.png"],
+                tiles: [streetTileUrl],
                 tileSize: rasterTileSize,
-                attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
             },
             [userSourceID]: {
                 type: "geojson",
@@ -309,9 +312,26 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         if (!flyToLocationSignal) return;
         const map = roverMapRef.current;
-        if (!map) return;
+        if (!map) {
+            console.warn("flyToLocationSignal effect: map not ready");
+            return;
+        }
         map.flyTo({ center: [flyToLocationSignal.lon, flyToLocationSignal.lat], zoom: zoomInLevel });
     }, [flyToLocationSignal]);
+
+    useEffect(() => {
+        const map = roverMapRef.current;
+        if (!map) {
+            console.warn("isSatellite effect: map not ready");
+            return;
+        }
+        const source = map.getSource(rasterSourceID);
+        if (!source) {
+            console.warn("isSatellite effect: raster source not found");
+            return;
+        }
+        source.setTiles([isSatellite ? satelliteTileUrl : streetTileUrl]);
+    }, [isSatellite]);
 
     // Methods
 
@@ -1079,6 +1099,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                             <img className="intel-review-image"
                                  src={reviewImageUrl}
                                  alt="Captured intel" />
+                        ) : reviewIntelPoint.hasImage ? (
+                            <div className="intel-review-image-loading" />
                         ) : (
                             <div className="intel-review-no-image">No image attached</div>
                         )}

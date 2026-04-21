@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, FileUp, Locate, LocateFixed, LocateOff, LogOut, Globe, SlidersHorizontal } from "lucide-react";
+import { Crosshair, FileUp, Layers, Locate, LocateFixed, LocateOff, LogOut, Globe, Map, SlidersHorizontal } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
@@ -63,6 +63,7 @@ export default function Rover() {
     const [exportIntelPoint, setExportIntelPoint] = useState(null);
     const [importIsOpen, setImportIsOpen] = useState(false);
     const [locateIntelPoint, setLocateIntelPoint] = useState(null);
+    const [isSatellite, setIsSatellite] = useState(false);
 
     // References
 
@@ -563,7 +564,14 @@ export default function Rover() {
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
                     flyToLocationSignal={flyToLocationSignal}
                     mapCenterRef={mapCenterRef}
+                    isSatellite={isSatellite}
                     geolocationIsEnabled={geolocationIsEnabled} />
+            <button className="rover-satellite-btn" onClick={() => setIsSatellite((prev) => !prev)} aria-label="Toggle satellite view">
+                {isSatellite ? <Map size={24} aria-hidden="true" /> : <Layers size={24} aria-hidden="true" />}
+            </button>
+            <button className="rover-locate-btn" onClick={onZoomToMe} aria-label="Zoom to my location">
+                <LocateFixed size={24} aria-hidden="true" />
+            </button>
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
                     <button className="rover-menu-item"
@@ -571,13 +579,6 @@ export default function Rover() {
                         <span className="rover-menu-item-label">
                             <Crosshair className="rover-menu-item-icon" aria-hidden="true" />
                             Get Intel
-                        </span>
-                    </button>
-                    <button className="rover-menu-item"
-                            onClick={() => { onZoomToMe(); setMenuIsOpen(false); }}>
-                        <span className="rover-menu-item-label">
-                            <LocateFixed className="rover-menu-item-icon" aria-hidden="true" />
-                            Zoom To Me
                         </span>
                     </button>
                     <button className={geolocationIsEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"}
