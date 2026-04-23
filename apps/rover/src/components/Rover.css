@@ -247,7 +247,8 @@
 }
 
 .rover-locate-btn,
-.rover-satellite-btn {
+.rover-satellite-btn,
+.rover-get-intel-btn {
     position: fixed;
     right: 1rem;
     z-index: 200;
@@ -266,15 +267,46 @@
 }
 
 .rover-locate-btn {
-    bottom: 1.5rem;
+    bottom: 3rem;
+    color: #60a5fa;
 }
 
 .rover-satellite-btn {
-    bottom: calc(1.5rem + 3.5rem + 0.6rem);
+    bottom: calc(3rem + 3.5rem + 0.6rem);
+}
+
+.rover-get-intel-btn {
+    bottom: calc(3rem + (3.5rem + 0.6rem) * 2);
+    color: #c29a57;
+}
+
+.rover-nav-cancel-btn {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(3rem + (3.5rem + 0.6rem) * 3);
+    z-index: 200;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    border: none;
+    background: #ffffff;
+    color: #cc0000;
+    font-size: 1.2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.rover-nav-cancel-btn:hover {
+    background: #f0f0f0;
 }
 
 .rover-locate-btn:hover,
-.rover-satellite-btn:hover {
+.rover-satellite-btn:hover,
+.rover-get-intel-btn:hover {
     background: rgba(30, 30, 30, 0.85);
 }
 

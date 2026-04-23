@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { Download } from "lucide-react";
+import { encryptText } from "../utils/crypto";
 import "./ExportIntelDialog.css";
 
-export default function ExportIntelDialog({ intelPoint, onCancel }) {
+export default function ExportIntelDialog({ intelPoint, cryptoKey, onCancel }) {
 
     // Consts
 
@@ -15,19 +16,21 @@ export default function ExportIntelDialog({ intelPoint, onCancel }) {
 
     // Methods
 
-    const buildExportBlob = () => {
+    const buildExportBlob = async () => {
+        const inner = JSON.stringify({
+            description: intelPoint.description ?? "",
+            tags: intelPoint.tags ?? [],
+            latitude: intelPoint.latitude,
+            longitude: intelPoint.longitude,
+            accuracy: intelPoint.accuracy,
+            timestamp: intelPoint.timestamp,
+            image: intelPoint.b64image ?? null,
+        });
+        const encrypted = await encryptText(cryptoKey, inner);
         const payload = {
             version: exportVersion,
             exportedAt: new Date().toISOString(),
-            intel: {
-                description: intelPoint.description ?? "",
-                tags: intelPoint.tags ?? [],
-                latitude: intelPoint.latitude,
-                longitude: intelPoint.longitude,
-                accuracy: intelPoint.accuracy,
-                timestamp: intelPoint.timestamp,
-                image: intelPoint.b64image ?? null,
-            },
+            encrypted,
         };
         return new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     };
@@ -41,8 +44,8 @@ export default function ExportIntelDialog({ intelPoint, onCancel }) {
         URL.revokeObjectURL(url);
     };
 
-    const onConfirm = () => {
-        downloadBlob(buildExportBlob());
+    const onConfirm = async () => {
+        downloadBlob(await buildExportBlob());
         onCancelRef.current?.();
     };
 
@@ -54,7 +57,7 @@ export default function ExportIntelDialog({ intelPoint, onCancel }) {
                 <button className="intel-cancel" onClick={() => onCancelRef.current?.()}>X</button>
                 <h2 className="intel-title">Export Intel</h2>
                 <p className="export-intel-body">
-                    This will download your intel as a JSON file — description, tags, photo (if any){hasLocation ? ", and coordinates" : ""}.
+                    This will download your intel as an encrypted JSON file — description, tags, photo (if any){hasLocation ? ", and coordinates" : ""}. It can only be imported on a device with the same encryption password.
                 </p>
                 {!hasLocation && (
                     <p className="export-intel-body export-intel-warning">

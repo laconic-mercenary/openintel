@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { Upload } from "lucide-react";
+import { decryptText } from "../utils/crypto";
 import "./ImportIntelDialog.css";
 
-export default function ImportIntelDialog({ onImport, onCancel }) {
+export default function ImportIntelDialog({ onImport, cryptoKey, onCancel }) {
 
     // Consts
 
@@ -22,11 +23,15 @@ export default function ImportIntelDialog({ onImport, onCancel }) {
 
     // Methods
 
-    const validate = (parsed) => {
+    const validateOuter = (parsed) => {
         if (!parsed || typeof parsed !== "object") return "Invalid file format.";
         if (parsed.version !== supportedVersion) return `Unsupported file version: ${parsed.version}.`;
-        const intel = parsed.intel;
-        if (!intel || typeof intel !== "object") return "Missing intel data.";
+        if (typeof parsed.encrypted !== "string") return "Missing encrypted payload.";
+        return null;
+    };
+
+    const validateInner = (intel) => {
+        if (!intel || typeof intel !== "object") return "Invalid intel data.";
         if (typeof intel.description !== "string") return "Missing or invalid description.";
         if (!Array.isArray(intel.tags)) return "Missing or invalid tags.";
         if (typeof intel.timestamp !== "number") return "Missing or invalid timestamp.";
@@ -49,12 +54,25 @@ export default function ImportIntelDialog({ onImport, onCancel }) {
         try {
             const text = await file.text();
             const parsed = JSON.parse(text);
-            const validationError = validate(parsed);
-            if (validationError) {
-                setError(validationError);
+            const outerError = validateOuter(parsed);
+            if (outerError) {
+                setError(outerError);
                 return;
             }
-            const intel = parsed.intel;
+            let intel;
+            try {
+                const decrypted = await decryptText(cryptoKey, parsed.encrypted);
+                intel = JSON.parse(decrypted);
+            } catch (decryptErr) {
+                console.error("failed to decrypt intel export:", decryptErr);
+                setError("Could not decrypt file — it was exported with a different encryption password.");
+                return;
+            }
+            const innerError = validateInner(intel);
+            if (innerError) {
+                setError(innerError);
+                return;
+            }
             const hasLocation = intel.latitude !== null && intel.latitude !== undefined
                 && intel.longitude !== null && intel.longitude !== undefined;
             onImportRef.current?.({

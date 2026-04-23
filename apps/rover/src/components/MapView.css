@@ -96,12 +96,14 @@
 
 .intel-point-actions {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   width: fit-content;
+  min-width: 120px;
 }
 
 .intel-point-action {
-  min-width: 74px;
+  width: 100%;
   border: 1px solid #2b2f35;
   border-radius: 7px;
   padding: 6px 10px;
@@ -149,6 +151,11 @@
 .intel-point-action.export {
   background: #5a7a5a;
   color: #d4f0d4;
+}
+
+.intel-point-action.navigate {
+  background: #2a4a6a;
+  color: #93c5fd;
 }
 
 .intel-point-delete-confirm {

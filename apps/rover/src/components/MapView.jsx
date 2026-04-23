@@ -13,7 +13,7 @@ import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
     
     // Consts
     
@@ -141,9 +141,11 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const keepIntelRef = useRef(onKeepIntel);
     const discardIntelRef = useRef(onDiscardIntel);
     const exportIntelRef = useRef(onExportIntel);
+    const navigateToRef = useRef(onNavigateTo);
     const activeIntelActionsPopupRef = useRef(null);
     const activeIntelActionPointKeyRef = useRef(null);
     const activeIntelActionPopupTypeRef = useRef(null);
+    const markerClickConsumedRef = useRef(false);
     const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
     const onBoundsChangeRef = useRef(onBoundsChange);
     const boundsDebounceRef = useRef(null);
@@ -216,6 +218,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         exportIntelRef.current = onExportIntel;
     }, [onExportIntel]);
+
+    useEffect(() => {
+        navigateToRef.current = onNavigateTo;
+    }, [onNavigateTo]);
 
     useEffect(() => {
         deleteConfirmedIntelRef.current = onDeleteConfirmedIntel;
@@ -359,6 +365,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             loadMarkerImages();
             applyMarkerHoverCursor();
             applyMarkerClickEvent();
+            applyMapClickEvent();
             applyContextMenuEvent();
             fireBoundsChange(map);
         });
@@ -376,6 +383,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         clearTimeout(boundsDebounceRef.current);
         removeIntelActionsPopup();
         removeMarkerClickEvent();
+        removeMapClickEvent();
         removeMarkerHoverCursor();
         removeContextMenuEvent();
         roverMapRef.current?.remove();
@@ -454,7 +462,28 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         map.off("click", markerLayerID, onMarkerClick);
     };
 
+    const applyMapClickEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) return;
+        map.on("click", onMapClick);
+    };
+
+    const removeMapClickEvent = () => {
+        const map = roverMapRef.current;
+        if (!map) return;
+        map.off("click", onMapClick);
+    };
+
+    const onMapClick = () => {
+        if (markerClickConsumedRef.current) {
+            markerClickConsumedRef.current = false;
+            return;
+        }
+        removeIntelActionsPopup();
+    };
+
     const onMarkerClick = (event) => {
+        markerClickConsumedRef.current = true;
         const markerFeature = event.features?.[0];
         if (!markerFeature) {
             return;
@@ -513,6 +542,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 exportIntelRef.current?.(intelPoint);
                 removeIntelActionsPopup();
             },
+            () => {
+                navigateToRef.current?.(intelPoint);
+                removeIntelActionsPopup();
+            },
         );
 
         const keepDiscardConfirm = new MLPopup({
@@ -554,6 +587,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             },
             () => {
                 showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
+            },
+            () => {
+                navigateToRef.current?.(intelPoint);
+                removeIntelActionsPopup();
             },
         );
 
@@ -642,6 +679,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             },
             () => {
                 showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
+            },
+            () => {
+                navigateToRef.current?.(intelPoint);
+                removeIntelActionsPopup();
             },
         );
 
@@ -753,7 +794,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         activeIntelActionPopupTypeRef.current = null;
     };
 
-    const createKeepDiscardPopup = (onKeepClick, onDiscardClick, onExportClick) => {
+    const createKeepDiscardPopup = (onKeepClick, onDiscardClick, onExportClick, onNavigateClick) => {
         const wrapper = document.createElement("div");
         wrapper.className = "intel-point-actions";
 
@@ -784,11 +825,20 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             onExportClick();
         });
 
-        wrapper.append(keepButton, discardButton, exportButton);
+        const navigateButton = document.createElement("button");
+        navigateButton.type = "button";
+        navigateButton.className = "intel-point-action navigate";
+        navigateButton.textContent = "Navigate";
+        navigateButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onNavigateClick();
+        });
+
+        wrapper.append(keepButton, discardButton, exportButton, navigateButton);
         return wrapper;
     };
 
-    const createReviewDeletePopup = (onReviewClick, onDeleteClick) => {
+    const createReviewDeletePopup = (onReviewClick, onDeleteClick, onNavigateClick) => {
         const wrapper = document.createElement("div");
         wrapper.className = "intel-point-actions";
 
@@ -810,11 +860,20 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             onDeleteClick();
         });
 
-        wrapper.append(reviewButton, deleteButton);
+        const navigateButton = document.createElement("button");
+        navigateButton.type = "button";
+        navigateButton.className = "intel-point-action navigate";
+        navigateButton.textContent = "Navigate";
+        navigateButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onNavigateClick();
+        });
+
+        wrapper.append(reviewButton, deleteButton, navigateButton);
         return wrapper;
     };
 
-    const createEditDeletePopup = (onEditClick, onDeleteClick) => {
+    const createEditDeletePopup = (onEditClick, onDeleteClick, onNavigateClick) => {
         const wrapper = document.createElement("div");
         wrapper.className = "intel-point-actions";
 
@@ -836,7 +895,16 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             onDeleteClick();
         });
 
-        wrapper.append(editButton, deleteButton);
+        const navigateButton = document.createElement("button");
+        navigateButton.type = "button";
+        navigateButton.className = "intel-point-action navigate";
+        navigateButton.textContent = "Navigate";
+        navigateButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onNavigateClick();
+        });
+
+        wrapper.append(editButton, deleteButton, navigateButton);
         return wrapper;
     };
 

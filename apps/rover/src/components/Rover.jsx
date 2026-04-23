@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Crosshair, FileUp, Layers, Locate, LocateFixed, LocateOff, LogOut, Globe, Map, SlidersHorizontal } from "lucide-react";
+import { Feather, FileUp, Layers, Locate, LocateOff, LogOut, Globe, Map, Navigation2, SlidersHorizontal } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
@@ -12,9 +12,11 @@ import ProcessingModal from "./ProcessingModal.jsx";
 import ExportIntelDialog from "./ExportIntelDialog.jsx";
 import ImportIntelDialog from "./ImportIntelDialog.jsx";
 import LocateArrow from "./LocateArrow.jsx";
+import NavArrow from "./NavArrow.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
+import { calculateBearing, calculateDistanceKm } from "../utils/geo";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
 import { saveTags, loadTags } from "../utils/tags";
@@ -64,6 +66,7 @@ export default function Rover() {
     const [importIsOpen, setImportIsOpen] = useState(false);
     const [locateIntelPoint, setLocateIntelPoint] = useState(null);
     const [isSatellite, setIsSatellite] = useState(false);
+    const [navTarget, setNavTarget] = useState(null);
 
     // References
 
@@ -483,6 +486,10 @@ export default function Rover() {
         }
     };
 
+    const onNavigateTo = (intelPoint) => {
+        setNavTarget(intelPoint);
+    };
+
     const onZoomToMe = () => {
         setZoomToPositionSignal((previous) => previous + 1);
     };
@@ -560,27 +567,33 @@ export default function Rover() {
                     onAddPlannedIntel={onAddPlannedIntel}
                     onEditPlannedIntel={onEditPlannedIntel}
                     onExportIntel={setExportIntelPoint}
+                    onNavigateTo={onNavigateTo}
                     zoomToPositionSignal={zoomToPositionSignal}
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
                     flyToLocationSignal={flyToLocationSignal}
                     mapCenterRef={mapCenterRef}
                     isSatellite={isSatellite}
                     geolocationIsEnabled={geolocationIsEnabled} />
+            { navTarget && (
+                <button className="rover-nav-cancel-btn" onClick={() => setNavTarget(null)} aria-label="Cancel navigation">✕</button>
+            )}
+            { navTarget && (
+                <NavArrow
+                    bearing={position ? calculateBearing(position.coords.latitude, position.coords.longitude, navTarget.latitude, navTarget.longitude) : 0}
+                    distanceKm={position ? calculateDistanceKm(position.coords.latitude, position.coords.longitude, navTarget.latitude, navTarget.longitude) : 0}
+                    hasPosition={!!position} />
+            )}
+            <button className="rover-get-intel-btn" onClick={() => setIntelIsOpen((previous) => !previous)} aria-label="Get Intel">
+                <Feather size={24} aria-hidden="true" />
+            </button>
             <button className="rover-satellite-btn" onClick={() => setIsSatellite((prev) => !prev)} aria-label="Toggle satellite view">
                 {isSatellite ? <Map size={24} aria-hidden="true" /> : <Layers size={24} aria-hidden="true" />}
             </button>
             <button className="rover-locate-btn" onClick={onZoomToMe} aria-label="Zoom to my location">
-                <LocateFixed size={24} aria-hidden="true" />
+                <Navigation2 size={24} aria-hidden="true" />
             </button>
             <div className={menuIsOpen ? "rover-menu is-open" : "rover-menu"}>
                 <nav className="rover-menu-nav">
-                    <button className="rover-menu-item"
-                            onClick={() => { setIntelIsOpen((previous) => !previous); setMenuIsOpen(false); }}>
-                        <span className="rover-menu-item-label">
-                            <Crosshair className="rover-menu-item-icon" aria-hidden="true" />
-                            Get Intel
-                        </span>
-                    </button>
                     <button className={geolocationIsEnabled ? "rover-menu-item geoloc-toggle is-enabled" : "rover-menu-item geoloc-toggle"}
                             onClick={() => setGeolocationIsEnabled((previous) => !previous)}>
                         <span className="rover-menu-item-label">
@@ -625,12 +638,14 @@ export default function Rover() {
             { importIsOpen && (
                 <ImportIntelDialog
                     onImport={onImportIntel}
+                    cryptoKey={cryptoKey}
                     onCancel={() => setImportIsOpen(false)} />
             )}
             { locateIntelPoint && <LocateArrow onConfirm={onLocateConfirm} /> }
             { exportIntelPoint && (
                 <ExportIntelDialog
                     intelPoint={exportIntelPoint}
+                    cryptoKey={cryptoKey}
                     onCancel={() => setExportIntelPoint(null)} />
             )}
             { locationSearchIsOpen && (

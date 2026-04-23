@@ -64,6 +64,24 @@ export const normalizeLongitude = (lon) => {
     return ((lon + 180.0) % 360.0) - 180.0;
 };
 
+export const calculateBearing = (lat1, lon1, lat2, lon2) => {
+    const lat1Rad = degToRad(lat1);
+    const lat2Rad = degToRad(lat2);
+    const deltaLonRad = degToRad(lon2 - lon1);
+    const y = Math.sin(deltaLonRad) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(deltaLonRad);
+    return (radToDeg(Math.atan2(y, x)) + 360) % 360;
+};
+
+export const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+    const lat1Rad = degToRad(lat1);
+    const lat2Rad = degToRad(lat2);
+    const deltaLatRad = degToRad(lat2 - lat1);
+    const deltaLonRad = degToRad(lon2 - lon1);
+    const a = Math.sin(deltaLatRad / 2) ** 2 + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(deltaLonRad / 2) ** 2;
+    return HAVERSINE_EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
 export const calculateSimpleCoord = (lat, lon, distanceInKM, bearing) => {
     const angularDistance = distanceInKM / HAVERSINE_EARTH_RADIUS_KM;
     const lat1Rad = degToRad(lat);
