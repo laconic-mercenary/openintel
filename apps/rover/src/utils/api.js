@@ -1,6 +1,6 @@
 // consts and globals
 
-const requestTimeoutMs = 10000;
+const requestTimeoutMs = 45000;
 const requestMaxRetries = 3;
 
 // functions

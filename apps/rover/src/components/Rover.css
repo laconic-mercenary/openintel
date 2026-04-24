@@ -292,6 +292,54 @@
     color: #c29a57;
 }
 
+.rover-save-all-btn,
+.rover-save-all-result {
+    position: fixed;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 2rem;
+    background: rgba(10, 10, 10, 0.8);
+    backdrop-filter: blur(6px);
+    color: #ffffff;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.rover-save-all-btn {
+    border: none;
+    cursor: pointer;
+}
+
+.rover-save-all-btn:disabled {
+    cursor: default;
+    opacity: 0.8;
+}
+
+.rover-save-all-btn:not(:disabled):hover {
+    background: rgba(30, 30, 30, 0.9);
+}
+
+.rover-save-all-result {
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+}
+
+@keyframes rover-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.rover-save-all-spinning {
+    animation: rover-spin 1s linear infinite;
+}
+
 .rover-nav-cancel-btn {
     position: fixed;
     right: 1rem;

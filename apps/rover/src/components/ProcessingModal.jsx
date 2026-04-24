@@ -2,7 +2,7 @@ import "./ProcessingModal.css";
 
 // methods
 
-export default function ProcessingModal({ message }) {
+export default function ProcessingModal({ message, subMessage }) {
 
     // DOM
 
@@ -17,6 +17,7 @@ export default function ProcessingModal({ message }) {
                     <div className="processing-radar-dot" />
                 </div>
                 <p className="processing-message">{message}</p>
+                { subMessage && <p className="processing-submessage">{subMessage}</p> }
             </div>
         </div>
     );

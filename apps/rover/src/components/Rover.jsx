@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Feather, FileUp, Layers, Locate, LocateOff, LogOut, Globe, Map, Navigation2, SlidersHorizontal } from "lucide-react";
+import { CloudUpload, Feather, FileUp, Layers, Loader2, Locate, LocateOff, LogOut, Globe, Map, Navigation2, SlidersHorizontal } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import Intel from "./Intel.jsx";
@@ -67,6 +67,7 @@ export default function Rover() {
     const [locateIntelPoint, setLocateIntelPoint] = useState(null);
     const [isSatellite, setIsSatellite] = useState(false);
     const [navTarget, setNavTarget] = useState(null);
+    const [saveAllState, setSaveAllState] = useState(null);
 
     // References
 
@@ -218,7 +219,7 @@ export default function Rover() {
     };
 
 
-    const onKeepIntel = async (intelPoint) => {
+    const onKeepIntel = async (intelPoint, silent = false) => {
         const key = cryptoKeyRef.current;
         try {
             const geohash = coordsToGeohash5(intelPoint.latitude, intelPoint.longitude);
@@ -253,7 +254,7 @@ export default function Rover() {
                 encryptedPayload,
                 encryptedImage,
                 timestamp: intelPoint.timestamp,
-            }, (attempt) => setCloudSaveMessage(attempt === 0 ? "Saving Intel..." : "Trying again..."));
+            }, silent ? undefined : (attempt) => setCloudSaveMessage(attempt === 0 ? "Saving Intel..." : "Trying again..."));
 
             setIntelPoints((previous) => previous.map((point) => {
                 if (point.key !== intelPoint.key) return point;
@@ -274,11 +275,32 @@ export default function Rover() {
                     .catch((saveTagsErr) => console.error("failed to save tags:", saveTagsErr));
             }
         } catch (error) {
-            console.error('failed to store intel:', error);
-            setError("Couldn't save to cloud — intel kept in memory. Tap the marker to retry.", error);
+            if (!silent) {
+                console.error('failed to store intel:', error);
+                setError("Couldn't save to cloud — intel kept in memory. Tap the marker to retry.", error);
+            }
+            throw error;
         } finally {
-            setCloudSaveMessage(null);
+            if (!silent) setCloudSaveMessage(null);
         }
+    };
+
+    const onSaveAllIntel = async () => {
+        const pending = intelPoints.filter((p) => !p.confirmed && !p.planned);
+        if (pending.length === 0) return;
+        setSaveAllState('saving');
+        let saved = 0;
+        let failed = 0;
+        for (const point of pending) {
+            try {
+                await onKeepIntel(point, true);
+                saved++;
+            } catch {
+                failed++;
+            }
+        }
+        setSaveAllState({ saved, failed });
+        setTimeout(() => setSaveAllState(null), 4000);
     };
 
     const onDeleteConfirmedIntel = async (intelPoint) => {
@@ -638,7 +660,30 @@ export default function Rover() {
                     </button>
                 </nav>
             </div>
-            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} /> }
+            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} subMessage="Large images may take longer." /> }
+            { (() => {
+                const pendingCount = intelPoints.filter((p) => !p.confirmed && !p.planned).length;
+                if (saveAllState && saveAllState !== 'saving') {
+                    const { saved, failed } = saveAllState;
+                    return (
+                        <div className="rover-save-all-result">
+                            { failed === 0 ? `${saved} intel saved` : `${saved} saved · ${failed} failed` }
+                        </div>
+                    );
+                }
+                if (pendingCount === 0) return null;
+                return (
+                    <button className="rover-save-all-btn"
+                            onClick={onSaveAllIntel}
+                            disabled={saveAllState === 'saving'}
+                            aria-label="Save all intel to cloud">
+                        { saveAllState === 'saving'
+                            ? <Loader2 size={16} className="rover-save-all-spinning" aria-hidden="true" />
+                            : <CloudUpload size={16} aria-hidden="true" /> }
+                        { saveAllState === 'saving' ? 'Saving...' : `Save All (${pendingCount})` }
+                    </button>
+                );
+            })() }
             { importIsOpen && (
                 <ImportIntelDialog
                     onImport={onImportIntel}
