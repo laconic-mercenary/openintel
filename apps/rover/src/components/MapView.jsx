@@ -55,7 +55,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 type: "raster",
                 tiles: [streetTileUrl],
                 tileSize: rasterTileSize,
-                attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
+                attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://www.maptiler.com/copyright/">MapTiler</a> contributors',
             },
             [userSourceID]: {
                 type: "geojson",
@@ -128,6 +128,9 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                     "icon-anchor": "bottom",
                     "icon-allow-overlap": false,
                     "icon-ignore-placement": false,
+                },
+                paint: {
+                    "icon-opacity": ["get", "iconOpacity"],
                 },
             },
         ],
@@ -1108,6 +1111,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             return;
         }
 
+        const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+        const fourYearsMs = 4 * oneYearMs;
+        const now = Date.now();
+
         const features = points.map((point) => {
             let intelType = "new";
             if (point.community) {
@@ -1117,11 +1124,18 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             } else if (point.confirmed) {
                 intelType = "confirmed";
             }
+            let iconOpacity = 1.0;
+            if (point.confirmed && !point.planned && point.timestamp) {
+                const age = now - point.timestamp;
+                if (age > fourYearsMs) iconOpacity = 0.4;
+                else if (age > oneYearMs) iconOpacity = 0.75;
+            }
             return {
                 type: "Feature",
                 properties: {
                     key: point.key,
                     intelType,
+                    iconOpacity,
                 },
                 geometry: {
                     type: "Point",

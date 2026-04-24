@@ -551,6 +551,10 @@ export default function Rover() {
                         <li>Encrypted: photos, descriptions, coordinates</li>
                         <li>Encryption is client-side only — the server never sees your data in plaintext</li>
                     </ul>
+                    <a className="rover-info-popup-privacy-link"
+                       href="https://www.openintel.to/privacy.html"
+                       target="_blank"
+                       rel="noopener noreferrer">Privacy information →</a>
                 </div>
             )}
             <Geolocation onPositionReady={onPositionReady} 

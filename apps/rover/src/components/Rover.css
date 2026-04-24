@@ -81,6 +81,18 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+.rover-info-popup-privacy-link {
+  display: inline-block;
+  margin-top: 0.8rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+}
+
+.rover-info-popup-privacy-link:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .rover-menu {
   position: fixed;
   top: 3rem;
