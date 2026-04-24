@@ -1,10 +1,19 @@
-import { DB_NAME, DB_VERSION, TAGS_STORE_NAME } from './keystore.js';
+import { DB_NAME, DB_VERSION, STORE_NAME, TAGS_STORE_NAME } from './keystore.js';
 
 const MAX_TAGS = 1500;
 
 function openDB() {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+            if (!db.objectStoreNames.contains(TAGS_STORE_NAME)) {
+                db.createObjectStore(TAGS_STORE_NAME, { keyPath: 'tag' });
+            }
+        };
         req.onsuccess = (e) => resolve(e.target.result);
         req.onerror = (e) => reject(e.target.error);
     });

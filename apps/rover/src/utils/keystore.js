@@ -5,7 +5,7 @@ const TAGS_STORE_NAME = 'tags';
 const KEY_ID = 'encryption_key';
 const SESSION_FLAG = 'openintel_key_session';
 
-export { DB_NAME, DB_VERSION, TAGS_STORE_NAME };
+export { DB_NAME, DB_VERSION, STORE_NAME, TAGS_STORE_NAME };
 
 function openDB() {
     return new Promise((resolve, reject) => {
