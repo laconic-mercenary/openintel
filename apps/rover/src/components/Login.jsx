@@ -26,6 +26,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [code, setCode] = useState('');
     const [step, setStep] = useState(loginStepEmail);
+    const [codeError, setCodeError] = useState(null);
 
     // References
 
@@ -123,13 +124,16 @@ export default function Login() {
 
     const onSubmitCode = async (e) => {
         e.preventDefault();
+        setCodeError(null);
         try {
             const result = await submitCode();
             if (!result.ok) {
-                if (result.status == httpStatus.UNAUTHORIZED) {
-                    // TODO set error text indicating that the code is wrong
-                } else if (result.status == httpStatus.NOT_FOUND) {
-                    // TODO set error text indicated that the token expired
+                if (result.status === httpStatus.UNAUTHORIZED) {
+                    setCodeError("Incorrect code — please check your email and try again.");
+                } else if (result.status === httpStatus.NOT_FOUND) {
+                    setCodeError("Code has expired — please go back and request a new one.");
+                } else {
+                    setCodeError("Something went wrong — please try again.");
                 }
                 console.error(result.statusText);
                 return;
@@ -137,6 +141,7 @@ export default function Login() {
             navigate(roverPath);
         } catch (err) {
             console.error(err);
+            setCodeError("Connection error — please check your network and try again.");
         }
     }
 
@@ -188,16 +193,19 @@ export default function Login() {
                                 inputMode="numeric"
                                 pattern="[0-9]*"
                                 value={code}
-                                onChange={(e) => setCode(e.target.value)}
+                                onChange={(e) => { setCode(e.target.value); setCodeError(null); }}
                                 placeholder="Enter your login code"
                                 required
                                 className="login-input"
                             />
-                            
+                            { codeError && <p className="login-code-error">{codeError}</p> }
                             <button type="submit" className="login-button">
                                 Login
                             </button>
                         </form>
+                        <button className="login-back" onClick={() => { setStep(loginStepEmail); setCode(''); setCodeError(null); }}>
+                            ← Back
+                        </button>
                     </div>
                 </div>
 

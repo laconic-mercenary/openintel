@@ -82,6 +82,27 @@
   background: #1f1f1f;
 }
 
+.login-code-error {
+  font-size: 0.82rem;
+  color: #f87171;
+  margin-bottom: 0.8rem;
+  line-height: 1.4;
+}
+
+.login-back {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-top: 0.8rem;
+  padding: 0;
+}
+
+.login-back:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .login-consent {
   margin-top: 1rem;
   font-size: 0.72rem;
