@@ -119,7 +119,8 @@
         <p class="updated">Last updated: April 2026</p>
 
         <h2>What we collect</h2>
-        <p>Your email address is used to send a one-time login code via a third-party email delivery provider. It is never stored in plaintext on our servers — only a cryptographic hash is retained for authentication purposes.</p>
+        <p>Your email address is used to send a one-time login code via a third-party email delivery provider. It is never persistently stored in plaintext — only a cryptographic hash is retained for authentication purposes.</p>
+        <p>On successful login, a signed session token containing your email address is stored in your browser as an HTTP-only cookie and transmitted to our servers on each authenticated request. It is used solely to derive your data's cryptographic identifiers and is not logged or retained beyond the lifetime of the session.</p>
 
         <h2>What we store</h2>
         <p>Your intel — photos, notes, and location — is encrypted on your device before it is uploaded. openintel servers store the encrypted result. We have no means of reading your photos, notes, or precise location.</p>
