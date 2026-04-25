@@ -20,6 +20,7 @@ import (
 	"openintel.jp/roverapi/internal/security"
 	"openintel.jp/roverapi/internal/server"
 	"openintel.jp/roverapi/internal/storage"
+	"openintel.jp/roverapi/internal/validation"
 	"openintel.jp/roverapi/pkg/rover"
 )
 
@@ -101,6 +102,17 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 			return
 		}
 
+		if !validation.IsValidGeohash5(req.Geohash) {
+			log.Warn().Str("geohash", req.Geohash).Msg("invalid geohash in store request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			return
+		}
+		if !validation.IsValidIntelKey(req.Key) {
+			log.Warn().Str("key", req.Key).Msg("invalid key in store request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+			return
+		}
+
 		emailHash := security.HmacSha256Hex(email, emailHashPepper)
 		hmacBytes := security.HmacSha256Bytes(email, timestampPepper)
 		obfuscatedTs := req.Timestamp + int64(binary.BigEndian.Uint32(hmacBytes[:4])) // TODO: 4 = first 4 bytes of HMAC → uint32 offset; per-user constant derived from email pepper
@@ -146,6 +158,18 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 
 		geohash := request.PathValue("geohash")
 		key := request.PathValue("key")
+
+		if !validation.IsValidGeohash5(geohash) {
+			log.Warn().Str("geohash", geohash).Msg("invalid geohash in update request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			return
+		}
+		if !validation.IsValidIntelKey(key) {
+			log.Warn().Str("key", key).Msg("invalid key in update request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+			return
+		}
+
 		emailHash := security.HmacSha256Hex(email, emailHashPepper)
 
 		var req updateIntelRequest
@@ -171,7 +195,20 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 func handleGetIntelImageURL(roverService *rover.RoverService) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleGetIntelImageURL")
+		geohash := request.PathValue("geohash")
 		key := request.PathValue("key")
+
+		if !validation.IsValidGeohash5(geohash) {
+			log.Warn().Str("geohash", geohash).Msg("invalid geohash in image URL request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			return
+		}
+		if !validation.IsValidIntelKey(key) {
+			log.Warn().Str("key", key).Msg("invalid key in image URL request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+			return
+		}
+
 		imageURL, urlErr := roverService.GetPrivateIntelImageURL(request.Context(), key)
 		if urlErr != nil {
 			log.Error().Err(urlErr).Msg("failed to get intel image URL")
@@ -202,6 +239,18 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 
 		geohash := request.PathValue("geohash")
 		key := request.PathValue("key")
+
+		if !validation.IsValidGeohash5(geohash) {
+			log.Warn().Str("geohash", geohash).Msg("invalid geohash in delete request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			return
+		}
+		if !validation.IsValidIntelKey(key) {
+			log.Warn().Str("key", key).Msg("invalid key in delete request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+			return
+		}
+
 		emailHash := security.HmacSha256Hex(email, emailHashPepper)
 
 		deleteErr := roverService.DeletePrivateIntel(request.Context(), emailHash, geohash, key)

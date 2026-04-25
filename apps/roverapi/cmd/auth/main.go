@@ -65,6 +65,12 @@ func (handler *AuthHandler) handleCode(writer http.ResponseWriter, request *http
 		return
 	}
 
+	if !validation.IsValidOTPCode(code) {
+		log.Warn().Msg("invalid OTP code format")
+		server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidOTPCode, "invalid code format")
+		return
+	}
+
 	email, parseErr := validation.ParseEmail(rawEmail)
 	if parseErr != nil {
 		server.RespondWithError(writer, http.StatusBadRequest, parseErr, "invalid email")
