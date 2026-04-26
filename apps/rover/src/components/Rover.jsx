@@ -50,8 +50,7 @@ export default function Rover() {
     const [zoomToNewIntelSignal, setZoomToNewIntelSignal] = useState(0);
     const [cryptoKey, setCryptoKey] = useState(null);
     const [encSalt, setEncSalt] = useState(null);
-    const [errorMessage, setErrorMessage] = useState(null);
-    const [errorDetailsMessage, setErrorDetailsMessage] = useState(null);
+    const [appError, setAppError] = useState(null);
     const [errorDetailsIsOpen, setErrorDetailsIsOpen] = useState(false);
     const [allTags, setAllTags] = useState([]);
     const [lastUsedTags, setLastUsedTags] = useState([]);
@@ -164,26 +163,29 @@ export default function Rover() {
     const onPositionReady = (position) => {
         positionRef.current = position;
         setPosition(position);
+        setAppError((prev) => prev?.type === 'geolocation' ? null : prev);
         if (!hasAutoZoomedRef.current && geolocationIsEnabled) {
             hasAutoZoomedRef.current = true;
             setZoomToPositionSignal((previous) => previous + 1);
         }
     };
 
-    const setError = (message, error) => {
-        setErrorMessage(message);
-        setErrorDetailsMessage(error ? `${error.name ? error.name + ": " : ""}${error.message || String(error)}` : null);
+    const setError = (message, error, type = null) => {
+        setAppError({
+            message,
+            details: error ? `${error.name ? error.name + ": " : ""}${error.message || String(error)}` : null,
+            type,
+        });
     };
 
     const dismissError = () => {
-        setErrorMessage(null);
-        setErrorDetailsMessage(null);
+        setAppError(null);
         setErrorDetailsIsOpen(false);
     };
 
     const onPositionError = (error) => {
         console.error(error);
-        setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error);
+        setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error, 'geolocation');
     };
 
     const onIntelReady = (description, b64Image, tags, saveToCloud) => {
@@ -212,7 +214,7 @@ export default function Rover() {
             },
             (error) => {
                 console.error(error);
-                setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error);
+                setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error, 'geolocation');
             },
             geolocationOptions,
         );
@@ -534,12 +536,12 @@ export default function Rover() {
     }
 
     return (
-        <div className={`rover-wrapper${errorMessage ? " has-error" : ""}`}>
-            { errorMessage && (
+        <div className={`rover-wrapper${appError ? " has-error" : ""}`}>
+            { appError && (
                 <div className="rover-error-banner">
-                    <span>⚠ {errorMessage}</span>
+                    <span>⚠ {appError.message}</span>
                     <span className="rover-error-banner-actions">
-                        { errorDetailsMessage && (
+                        { appError.details && (
                             <button className="rover-error-banner-details" onClick={() => setErrorDetailsIsOpen(true)}>Details</button>
                         )}
                         <button className="rover-error-banner-dismiss" onClick={dismissError}>✕</button>
@@ -550,7 +552,7 @@ export default function Rover() {
                 <div className="rover-error-details-overlay" onClick={() => setErrorDetailsIsOpen(false)}>
                     <div className="rover-error-details-popup" onClick={(e) => e.stopPropagation()}>
                         <p className="rover-error-details-title">Error Details</p>
-                        <p className="rover-error-details-message">{errorDetailsMessage}</p>
+                        <p className="rover-error-details-message">{appError?.details}</p>
                         <button className="rover-error-details-close" onClick={() => setErrorDetailsIsOpen(false)}>Close</button>
                     </div>
                 </div>
@@ -589,7 +591,7 @@ export default function Rover() {
                     onDiscardIntel={onDiscardIntel}
                     onDeleteConfirmedIntel={onDeleteConfirmedIntel}
                     onBoundsChange={onBoundsChange}
-                    onError={setErrorMessage}
+                    onError={(msg) => setError(msg, null)}
                     onAddPlannedIntel={onAddPlannedIntel}
                     onEditPlannedIntel={onEditPlannedIntel}
                     onExportIntel={setExportIntelPoint}
