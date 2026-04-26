@@ -33,6 +33,7 @@ const (
 	maxRequestBodyBytes      = 25 << 20 // 25MB — POST /rover/intel carries base64-encoded encrypted image (~33% overhead on 15MB raw)
 	maxSmallRequestBodyBytes = 32 << 10 // 32KB — all other routes carry no image data
 	maxGeohashQueryCells     = 500
+	maxCommentBodyBytes      = 4 << 10 // 4KB — comment payloads are small encrypted text only
 )
 
 func listenAddr() string {
@@ -64,6 +65,24 @@ type storeIntelResponse struct {
 
 type getIntelImageURLResponse struct {
 	URL string `json:"url"`
+}
+
+type addCommentRequest struct {
+	EncryptedText string `json:"encryptedText"`
+}
+
+type addCommentResponse struct {
+	RowKey     string `json:"rowKey"`
+	AuthorHash string `json:"authorHash"`
+	CreatedAt  int64  `json:"createdAt"`
+}
+
+type commentItem struct {
+	RowKey        string `json:"rowKey"`
+	AuthorHash    string `json:"authorHash"`
+	EncryptedText string `json:"encryptedText"`
+	Geohash       string `json:"geohash"`
+	CreatedAt     int64  `json:"createdAt"`
 }
 
 type listIntelItem struct {
@@ -267,6 +286,123 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 	}
 }
 
+func handleAddComment(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper string) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		log.Trace().Msg("handleAddComment")
+
+		email, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
+		geohash := request.PathValue("geohash")
+		key := request.PathValue("key")
+
+		if !validation.IsValidGeohash5(geohash) {
+			log.Warn().Str("geohash", geohash).Msg("invalid geohash in add comment request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			return
+		}
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in add comment request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			return
+		}
+
+		var req addCommentRequest
+		decodeErr := json.NewDecoder(request.Body).Decode(&req)
+		if decodeErr != nil {
+			log.Warn().Err(decodeErr).Msg("invalid comment request body")
+			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
+			return
+		}
+
+		emailHash := security.HmacSha256Hex(email, emailHashPepper)
+		comment := storage.PrivateIntelComment{
+			IntelRowKey:   key,
+			AuthorHash:    emailHash,
+			EncryptedText: req.EncryptedText,
+			Geohash:       geohash,
+		}
+
+		rowKey, addErr := roverService.AddComment(request.Context(), emailHash, geohash, key, comment)
+		if addErr != nil {
+			if errors.Is(addErr, storage.ErrNotFound) {
+				server.RespondWithError(writer, http.StatusNotFound, addErr, "intel not found")
+				return
+			}
+			if errors.Is(addErr, storage.ErrTooManyComments) {
+				server.RespondWithError(writer, http.StatusConflict, addErr, "comment limit reached")
+				return
+			}
+			if errors.Is(addErr, storage.ErrCommentInvalid) {
+				server.RespondWithError(writer, http.StatusBadRequest, addErr, "invalid comment")
+				return
+			}
+			log.Error().Err(addErr).Msg("failed to add comment")
+			server.RespondWithError(writer, http.StatusInternalServerError, addErr, "failed to add comment")
+			return
+		}
+
+		resp := addCommentResponse{RowKey: rowKey, AuthorHash: emailHash}
+		respBytes, marshalErr := json.Marshal(resp)
+		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal add comment response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			return
+		}
+		server.RespondWithOk(writer, respBytes)
+	}
+}
+
+func handleListComments(roverService *rover.RoverService, jwtSecret []byte) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		log.Trace().Msg("handleListComments")
+
+		_, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
+		key := request.PathValue("key")
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in list comments request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			return
+		}
+
+		items, listErr := roverService.ListComments(request.Context(), key)
+		if listErr != nil {
+			log.Error().Err(listErr).Msg("failed to list comments")
+			server.RespondWithError(writer, http.StatusInternalServerError, listErr, "failed to list comments")
+			return
+		}
+
+		responseItems := make([]commentItem, len(items))
+		for i, item := range items {
+			responseItems[i] = commentItem{
+				RowKey:        item.RowKey,
+				AuthorHash:    item.AuthorHash,
+				EncryptedText: item.EncryptedText,
+				Geohash:       item.Geohash,
+				CreatedAt:     item.CreatedAt,
+			}
+		}
+
+		respBytes, marshalErr := json.Marshal(responseItems)
+		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal list comments response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			return
+		}
+		server.RespondWithOk(writer, respBytes)
+	}
+}
+
 func handleListIntel(roverService *rover.RoverService, jwtSecret []byte, emailHashPepper string) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleListIntel")
@@ -376,6 +512,19 @@ func main() {
 		log.Fatal().Err(tableInitErr).Msg("failed to initialize table repository")
 	}
 
+	commentRepo, commentRepoErr := storage.NewAZPrivateIntelCommentRepository(
+		config.RoverTableConnStr(),
+		config.RoverCommentTableName(),
+	)
+	if commentRepoErr != nil {
+		log.Fatal().Err(commentRepoErr).Msg("failed to create comment repository")
+	}
+
+	commentInitErr := commentRepo.Initialize(ctx)
+	if commentInitErr != nil {
+		log.Fatal().Err(commentInitErr).Msg("failed to initialize comment repository")
+	}
+
 	imageRepo, imageRepoErr := storage.NewS3IntelImageRepository(
 		config.RoverStoreEndpoint(),
 		config.RoverStorePublicEndpoint(),
@@ -395,6 +544,7 @@ func main() {
 	roverService, roverServiceErr := rover.NewRoverService(
 		rover.WithPrivateMetadataRepository(tableRepo),
 		rover.WithImageRepository(imageRepo),
+		rover.WithCommentRepository(commentRepo),
 	)
 	if roverServiceErr != nil {
 		log.Fatal().Err(roverServiceErr).Msg("failed to create rover service")
@@ -412,6 +562,8 @@ func main() {
 	mux.HandleFunc("GET /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleGetIntelImageURL(roverService)))))
 	mux.HandleFunc("PUT /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleUpdateIntel(roverService, jwtSecret, emailHashPepper)))))
 	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleDeleteIntel(roverService, jwtSecret, emailHashPepper)))))
+	mux.HandleFunc("GET /rover/intel/{geohash}/{key}/comments", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleListComments(roverService, jwtSecret)))))
+	mux.HandleFunc("POST /rover/intel/{geohash}/{key}/comments", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxCommentBodyBytes, handleAddComment(roverService, jwtSecret, emailHashPepper)))))
 
 	apiServer := &http.Server{
 		Addr:    listenAddr(),

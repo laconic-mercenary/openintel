@@ -2,12 +2,15 @@
 
 const requestTimeoutMs = 45000;
 const requestMaxRetries = 3;
+// delay between retries gives the network stack (especially iOS) time to recover before the next attempt
+const retryDelayMs = 2000;
 
 // functions
 
 const fetchWithTimeout = async (url, options = {}, onAttempt) => {
     let lastErr;
     for (let attempt = 0; attempt < requestMaxRetries; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
         onAttempt?.(attempt);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
@@ -86,6 +89,29 @@ export const updateIntel = async (intelPoint) => {
     if (!response.ok) {
         throw new Error(`failed to update intel: ${response.status}`);
     }
+};
+
+export const getComments = async (intelPoint) => {
+    const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}/comments`);
+    if (!response.ok) {
+        throw new Error(`failed to get comments: ${response.status}`);
+    }
+    return response.json();
+};
+
+export const addComment = async (intelPoint, encryptedText) => {
+    const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encryptedText }),
+    });
+    if (response.status === 409) {
+        throw new Error('comment_limit_reached');
+    }
+    if (!response.ok) {
+        throw new Error(`failed to add comment: ${response.status}`);
+    }
+    return response.json();
 };
 
 export const deleteIntel = async (intelPoint) => {

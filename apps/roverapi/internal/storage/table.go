@@ -105,6 +105,10 @@ func (repository *AZPrivateIntelRepository) GetPrivateIntelMetadata(ctx context.
 	log.Trace().Msg("GetPrivateIntelMetadata")
 	resp, getErr := repository.tableClient.GetEntity(ctx, partitionKey, rowKey, nil)
 	if getErr != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(getErr, &respErr) && respErr.ErrorCode == tableErrResourceNotFound {
+			return PrivateIntel{}, ErrNotFound
+		}
 		log.Error().Err(getErr).Str("partitionKey", partitionKey).Str("rowKey", rowKey).Msg("error getting intel entity from table")
 		return PrivateIntel{}, getErr
 	}

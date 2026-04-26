@@ -13,6 +13,7 @@ const roverCfgEnvPrefix = "ROVERAPI_ROVER"
 var (
 	envRoverTableConnStr              = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "TABLE_CONN_STR")
 	envRoverPrivateIntelTableName     = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "PRIVATE_INTEL_TABLE_NAME")
+	envRoverCommentTableName          = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "COMMENT_TABLE_NAME")
 	envRoverIntelEmailHashPepper      = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "INTEL_EMAIL_HASH_PEPPER")
 	envRoverTimestampPepper           = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "TIMESTAMP_PEPPER")
 	envRoverTimestampSecretBase       = fmt.Sprintf(envVarFmt, roverCfgEnvPrefix, "TIMESTAMP_SECRET_BASE")
@@ -30,6 +31,10 @@ func RoverTableConnStr() string {
 
 func RoverPrivateIntelTableName() string {
 	return getRequiredEnv(envRoverPrivateIntelTableName)
+}
+
+func RoverCommentTableName() string {
+	return getRequiredEnv(envRoverCommentTableName)
 }
 
 func RoverIntelEmailHashPepper() string {

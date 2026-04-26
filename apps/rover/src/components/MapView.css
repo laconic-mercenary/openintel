@@ -282,3 +282,19 @@
   font-size: 0.75rem;
   padding: 2px 8px;
 }
+
+.intel-review-comments-btn {
+  margin-top: 0.75rem;
+  width: 100%;
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.4rem;
+  color: #3a4a54;
+  font-size: 0.82rem;
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
+.intel-review-comments-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}

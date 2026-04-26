@@ -20,6 +20,10 @@ const (
 	intelImageURLExpiry = time.Hour
 )
 
+const (
+	maxCommentsPerIntel = 10
+)
+
 var (
 	ErrEncryptedPayloadRequired = errors.New("encrypted payload is required")
 	ErrKeyRequired              = errors.New("key is required")
@@ -35,6 +39,7 @@ type RoverServiceCfg func(service *RoverService) error
 type RoverService struct {
 	metadataRepository storage.PrivateIntelMetadataRepository
 	imageRepository    storage.IntelImageRepository
+	commentRepository  storage.PrivateIntelCommentRepository
 }
 
 //
@@ -63,6 +68,13 @@ func WithPrivateMetadataRepository(repo storage.PrivateIntelMetadataRepository) 
 func WithImageRepository(repo storage.IntelImageRepository) RoverServiceCfg {
 	return func(service *RoverService) error {
 		service.imageRepository = repo
+		return nil
+	}
+}
+
+func WithCommentRepository(repo storage.PrivateIntelCommentRepository) RoverServiceCfg {
+	return func(service *RoverService) error {
+		service.commentRepository = repo
 		return nil
 	}
 }
@@ -178,6 +190,12 @@ func (service *RoverService) DeletePrivateIntel(ctx context.Context, emailHash, 
 		log.Error().Err(deleteMetaErr).Str("rowKey", rowKey).Msg("error deleting intel metadata")
 		return fmt.Errorf("failed to delete metadata: %w", deleteMetaErr)
 	}
+
+	deleteCommentsErr := service.commentRepository.DeleteCommentsByIntel(ctx, rowKey)
+	if deleteCommentsErr != nil {
+		log.Error().Err(deleteCommentsErr).Str("rowKey", rowKey).Msg("error deleting comments for intel")
+		return fmt.Errorf("failed to delete comments: %w", deleteCommentsErr)
+	}
 	return nil
 }
 
@@ -190,6 +208,51 @@ func (service *RoverService) ListPrivateIntel(ctx context.Context, emailHash str
 	if listErr != nil {
 		log.Error().Err(listErr).Msg("error listing private intel")
 		return nil, fmt.Errorf("failed to list intel: %w", listErr)
+	}
+	return items, nil
+}
+
+func (service *RoverService) AddComment(ctx context.Context, emailHash, geohash, intelRowKey string, comment storage.PrivateIntelComment) (string, error) {
+	log.Trace().Msg("AddComment")
+	if validation.IsEmptyStr(emailHash) {
+		return "", ErrEmailHashRequired
+	}
+	if validation.IsEmptyStr(geohash) {
+		return "", ErrGeohashRequired
+	}
+	if validation.IsEmptyStr(intelRowKey) {
+		return "", ErrKeyRequired
+	}
+	partitionKey := emailHash + geohash
+	_, getErr := service.metadataRepository.GetPrivateIntelMetadata(ctx, partitionKey, intelRowKey)
+	if getErr != nil {
+		return "", getErr
+	}
+	existing, listErr := service.commentRepository.ListComments(ctx, intelRowKey)
+	if listErr != nil {
+		log.Error().Err(listErr).Str("intelRowKey", intelRowKey).Msg("error counting comments")
+		return "", fmt.Errorf("failed to count comments: %w", listErr)
+	}
+	if len(existing) >= maxCommentsPerIntel {
+		return "", storage.ErrTooManyComments
+	}
+	rowKey, addErr := service.commentRepository.AddComment(ctx, comment)
+	if addErr != nil {
+		log.Error().Err(addErr).Str("intelRowKey", intelRowKey).Msg("error adding comment")
+		return "", fmt.Errorf("failed to add comment: %w", addErr)
+	}
+	return rowKey, nil
+}
+
+func (service *RoverService) ListComments(ctx context.Context, intelRowKey string) ([]storage.PrivateIntelComment, error) {
+	log.Trace().Msg("ListComments")
+	if validation.IsEmptyStr(intelRowKey) {
+		return nil, ErrKeyRequired
+	}
+	items, listErr := service.commentRepository.ListComments(ctx, intelRowKey)
+	if listErr != nil {
+		log.Error().Err(listErr).Str("intelRowKey", intelRowKey).Msg("error listing comments")
+		return nil, fmt.Errorf("failed to list comments: %w", listErr)
 	}
 	return items, nil
 }

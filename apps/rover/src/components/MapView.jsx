@@ -12,6 +12,7 @@ import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 import { calculateSimpleCoord } from "../utils/geo";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
+import CommentsDialog from "./CommentsDialog.jsx";
 
 export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
     
@@ -156,6 +157,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const editPlannedIntelRef = useRef(onEditPlannedIntel);
     const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
     const [reviewImageUrl, setReviewImageUrl] = useState(null);
+    const [commentsOpen, setCommentsOpen] = useState(false);
     const reviewBlobUrlRef = useRef(null);
 
     // Effects
@@ -249,6 +251,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 reviewBlobUrlRef.current = null;
             }
             setReviewImageUrl(null);
+            setCommentsOpen(false);
             return;
         }
         const point = intelPoints.find((p) => p.key === reviewIntelPointKey);
@@ -1199,8 +1202,20 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                                 ))}
                             </div>
                         )}
+                        <button
+                            className="intel-review-comments-btn"
+                            type="button"
+                            onClick={() => setCommentsOpen(true)}>
+                            Comments
+                        </button>
                     </div>
                 </div>
+            )}
+            {reviewIntelPoint && commentsOpen && (
+                <CommentsDialog
+                    intelPoint={reviewIntelPoint}
+                    cryptoKey={cryptoKey}
+                    onClose={() => setCommentsOpen(false)} />
             )}
         </>
     );
