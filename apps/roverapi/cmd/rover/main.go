@@ -164,9 +164,9 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
 			return
 		}
-		if !validation.IsValidIntelKey(key) {
-			log.Warn().Str("key", key).Msg("invalid key in update request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in update request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
 			return
 		}
 
@@ -203,9 +203,9 @@ func handleGetIntelImageURL(roverService *rover.RoverService) http.HandlerFunc {
 			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
 			return
 		}
-		if !validation.IsValidIntelKey(key) {
-			log.Warn().Str("key", key).Msg("invalid key in image URL request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in image URL request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
 			return
 		}
 
@@ -245,9 +245,9 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
 			return
 		}
-		if !validation.IsValidIntelKey(key) {
-			log.Warn().Str("key", key).Msg("invalid key in delete request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in delete request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
 			return
 		}
 
