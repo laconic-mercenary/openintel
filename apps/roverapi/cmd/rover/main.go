@@ -30,10 +30,25 @@ import (
 const (
 	httpPortDefault          = ":8081"
 	shutdownDeadlineSecs     = 30
-	maxRequestBodyBytes      = 25 << 20 // 25MB — POST /rover/intel carries base64-encoded encrypted image (~33% overhead on 15MB raw)
+	maxRequestBodyBytes      = 32 << 10 // 32KB — metadata only; image bytes no longer sent via this handler
 	maxSmallRequestBodyBytes = 32 << 10 // 32KB — all other routes carry no image data
 	maxGeohashQueryCells     = 500
 	maxCommentBodyBytes      = 4 << 10 // 4KB — comment payloads are small encrypted text only
+	pathParamKey             = "key"
+	pathParamGeohash         = "geohash"
+	errInvalidKey            = "invalid key"
+	errInvalidGeohash        = "invalid geohash"
+	errInvalidRequestBody    = "invalid request body"
+	errInvalidBboxParams     = "invalid bbox parameters"
+	errQueryAreaTooLarge     = "query area too large"
+	errIntelNotFound         = "intel not found"
+	errFailedToStoreIntel    = "failed to store intel"
+	errFailedToUpdateIntel   = "failed to update intel"
+	errFailedToDeleteIntel   = "failed to delete intel"
+	errFailedToListIntel     = "failed to list intel"
+	errFailedToGetImageURL   = "failed to get image URL"
+	errFailedToMarshal       = "failed to marshal response"
+	errFailedToGetUploadURL  = "failed to get image upload URL"
 )
 
 func listenAddr() string {
@@ -53,14 +68,20 @@ type updateIntelRequest struct {
 type storeIntelRequest struct {
 	Key              string `json:"key"`
 	Geohash          string `json:"geohash"`
-	Image            string `json:"image"`
+	HasImage         bool   `json:"hasImage"`
 	EncryptedPayload string `json:"encryptedPayload"`
 	Timestamp        int64  `json:"timestamp"`
 }
 
 type storeIntelResponse struct {
-	Key     string `json:"key"`
-	Geohash string `json:"geohash"`
+	Key             string `json:"key"`
+	Geohash         string `json:"geohash"`
+	ImageKey        string `json:"imageKey,omitempty"`
+	PresignedPutUrl string `json:"presignedPutUrl,omitempty"`
+}
+
+type getImageUploadURLResponse struct {
+	PresignedPutUrl string `json:"presignedPutUrl"`
 }
 
 type getIntelImageURLResponse struct {
@@ -116,19 +137,19 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 		var req storeIntelRequest
 		decodeErr := json.NewDecoder(request.Body).Decode(&req)
 		if decodeErr != nil {
-			log.Warn().Err(decodeErr).Msg("invalid request body")
-			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
+			log.Warn().Err(decodeErr).Msg(errInvalidRequestBody)
+			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, errInvalidRequestBody)
 			return
 		}
 
 		if !validation.IsValidGeohash5(req.Geohash) {
 			log.Warn().Str("geohash", req.Geohash).Msg("invalid geohash in store request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
 		if !validation.IsValidIntelKey(req.Key) {
 			log.Warn().Str("key", req.Key).Msg("invalid key in store request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, errInvalidKey)
 			return
 		}
 
@@ -139,25 +160,30 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 		intel := storage.PrivateIntel{
 			Key:                 req.Key,
 			Geohash:             req.Geohash,
-			Image:               req.Image,
+			HasImage:            req.HasImage,
 			EncryptedPayload:    req.EncryptedPayload,
 			Timestamp:           req.Timestamp,
 			EmailHash:           emailHash,
 			TimestampObfuscated: obfuscatedTs,
 		}
 
-		rowKey, storeErr := roverService.StorePrivateIntel(request.Context(), intel)
+		result, storeErr := roverService.StorePrivateIntel(request.Context(), intel)
 		if storeErr != nil {
 			log.Error().Err(storeErr).Msg("failed to store intel")
-			server.RespondWithError(writer, http.StatusInternalServerError, storeErr, "failed to store intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, storeErr, errFailedToStoreIntel)
 			return
 		}
 
-		resp := storeIntelResponse{Key: rowKey, Geohash: req.Geohash}
+		resp := storeIntelResponse{
+			Key:             result.RowKey,
+			Geohash:         req.Geohash,
+			ImageKey:        result.ImageKey,
+			PresignedPutUrl: result.PresignedPutURL,
+		}
 		respBytes, marshalErr := json.Marshal(resp)
 		if marshalErr != nil {
 			log.Error().Err(marshalErr).Msg("failed to marshal store intel response")
-			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
@@ -175,17 +201,17 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 			return
 		}
 
-		geohash := request.PathValue("geohash")
-		key := request.PathValue("key")
+		geohash := request.PathValue(pathParamGeohash)
+		key := request.PathValue(pathParamKey)
 
 		if !validation.IsValidGeohash5(geohash) {
 			log.Warn().Str("geohash", geohash).Msg("invalid geohash in update request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
 		if !validation.IsValidIntelRowKey(key) {
 			log.Warn().Str("key", key).Msg("invalid row key in update request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
 			return
 		}
 
@@ -194,8 +220,8 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 		var req updateIntelRequest
 		decodeErr := json.NewDecoder(request.Body).Decode(&req)
 		if decodeErr != nil {
-			log.Warn().Err(decodeErr).Msg("invalid request body")
-			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
+			log.Warn().Err(decodeErr).Msg(errInvalidRequestBody)
+			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, errInvalidRequestBody)
 			return
 		}
 
@@ -204,7 +230,7 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 		})
 		if updateErr != nil {
 			log.Error().Err(updateErr).Msg("failed to update intel")
-			server.RespondWithError(writer, http.StatusInternalServerError, updateErr, "failed to update intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, updateErr, errFailedToUpdateIntel)
 			return
 		}
 		server.RespondWithOk(writer, []byte("{}"))
@@ -214,31 +240,31 @@ func handleUpdateIntel(roverService *rover.RoverService, jwtSecret []byte, email
 func handleGetIntelImageURL(roverService *rover.RoverService) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		log.Trace().Msg("handleGetIntelImageURL")
-		geohash := request.PathValue("geohash")
-		key := request.PathValue("key")
+		geohash := request.PathValue(pathParamGeohash)
+		key := request.PathValue(pathParamKey)
 
 		if !validation.IsValidGeohash5(geohash) {
 			log.Warn().Str("geohash", geohash).Msg("invalid geohash in image URL request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
 		if !validation.IsValidIntelRowKey(key) {
 			log.Warn().Str("key", key).Msg("invalid row key in image URL request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
 			return
 		}
 
 		imageURL, urlErr := roverService.GetPrivateIntelImageURL(request.Context(), key)
 		if urlErr != nil {
 			log.Error().Err(urlErr).Msg("failed to get intel image URL")
-			server.RespondWithError(writer, http.StatusInternalServerError, urlErr, "failed to get image URL")
+			server.RespondWithError(writer, http.StatusInternalServerError, urlErr, errFailedToGetImageURL)
 			return
 		}
 		resp := getIntelImageURLResponse{URL: imageURL}
 		respBytes, marshalErr := json.Marshal(resp)
 		if marshalErr != nil {
 			log.Error().Err(marshalErr).Msg("failed to marshal image URL response")
-			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
@@ -256,17 +282,17 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 			return
 		}
 
-		geohash := request.PathValue("geohash")
-		key := request.PathValue("key")
+		geohash := request.PathValue(pathParamGeohash)
+		key := request.PathValue(pathParamKey)
 
 		if !validation.IsValidGeohash5(geohash) {
 			log.Warn().Str("geohash", geohash).Msg("invalid geohash in delete request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
 		if !validation.IsValidIntelRowKey(key) {
 			log.Warn().Str("key", key).Msg("invalid row key in delete request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
 			return
 		}
 
@@ -275,14 +301,50 @@ func handleDeleteIntel(roverService *rover.RoverService, jwtSecret []byte, email
 		deleteErr := roverService.DeletePrivateIntel(request.Context(), emailHash, geohash, key)
 		if deleteErr != nil {
 			if errors.Is(deleteErr, storage.ErrNotFound) {
-				server.RespondWithError(writer, http.StatusNotFound, deleteErr, "intel not found")
+				server.RespondWithError(writer, http.StatusNotFound, deleteErr, errIntelNotFound)
 				return
 			}
 			log.Error().Err(deleteErr).Msg("failed to delete intel")
-			server.RespondWithError(writer, http.StatusInternalServerError, deleteErr, "failed to delete intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, deleteErr, errFailedToDeleteIntel)
 			return
 		}
 		server.RespondWithOk(writer, []byte("{}"))
+	}
+}
+
+func handleGetImageUploadURL(roverService *rover.RoverService, jwtSecret []byte) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		log.Trace().Msg("handleGetImageUploadURL")
+
+		_, emailErr := server.EmailFromCookie(request, jwtSecret)
+		if emailErr != nil {
+			log.Warn().Err(emailErr).Msg("missing or invalid auth cookie")
+			server.RespondUnauthorized(writer)
+			return
+		}
+
+		key := request.PathValue(pathParamKey)
+		if !validation.IsValidIntelRowKey(key) {
+			log.Warn().Str("key", key).Msg("invalid row key in get image upload URL request")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
+			return
+		}
+
+		putURL, urlErr := roverService.GetImageUploadURL(request.Context(), key)
+		if urlErr != nil {
+			log.Error().Err(urlErr).Msg("failed to get image upload URL")
+			server.RespondWithError(writer, http.StatusInternalServerError, urlErr, errFailedToGetUploadURL)
+			return
+		}
+
+		resp := getImageUploadURLResponse{PresignedPutUrl: putURL}
+		respBytes, marshalErr := json.Marshal(resp)
+		if marshalErr != nil {
+			log.Error().Err(marshalErr).Msg("failed to marshal image upload URL response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
+			return
+		}
+		server.RespondWithOk(writer, respBytes)
 	}
 }
 
@@ -297,17 +359,17 @@ func handleAddComment(roverService *rover.RoverService, jwtSecret []byte, emailH
 			return
 		}
 
-		geohash := request.PathValue("geohash")
-		key := request.PathValue("key")
+		geohash := request.PathValue(pathParamGeohash)
+		key := request.PathValue(pathParamKey)
 
 		if !validation.IsValidGeohash5(geohash) {
 			log.Warn().Str("geohash", geohash).Msg("invalid geohash in add comment request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, "invalid geohash")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
 		if !validation.IsValidIntelRowKey(key) {
 			log.Warn().Str("key", key).Msg("invalid row key in add comment request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
 			return
 		}
 
@@ -315,7 +377,7 @@ func handleAddComment(roverService *rover.RoverService, jwtSecret []byte, emailH
 		decodeErr := json.NewDecoder(request.Body).Decode(&req)
 		if decodeErr != nil {
 			log.Warn().Err(decodeErr).Msg("invalid comment request body")
-			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, "invalid request body")
+			server.RespondWithError(writer, http.StatusBadRequest, decodeErr, errInvalidRequestBody)
 			return
 		}
 
@@ -330,7 +392,7 @@ func handleAddComment(roverService *rover.RoverService, jwtSecret []byte, emailH
 		rowKey, addErr := roverService.AddComment(request.Context(), emailHash, geohash, key, comment)
 		if addErr != nil {
 			if errors.Is(addErr, storage.ErrNotFound) {
-				server.RespondWithError(writer, http.StatusNotFound, addErr, "intel not found")
+				server.RespondWithError(writer, http.StatusNotFound, addErr, errIntelNotFound)
 				return
 			}
 			if errors.Is(addErr, storage.ErrTooManyComments) {
@@ -350,7 +412,7 @@ func handleAddComment(roverService *rover.RoverService, jwtSecret []byte, emailH
 		respBytes, marshalErr := json.Marshal(resp)
 		if marshalErr != nil {
 			log.Error().Err(marshalErr).Msg("failed to marshal add comment response")
-			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
@@ -368,10 +430,10 @@ func handleListComments(roverService *rover.RoverService, jwtSecret []byte) http
 			return
 		}
 
-		key := request.PathValue("key")
+		key := request.PathValue(pathParamKey)
 		if !validation.IsValidIntelRowKey(key) {
 			log.Warn().Str("key", key).Msg("invalid row key in list comments request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, "invalid key")
+			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelRowKey, errInvalidKey)
 			return
 		}
 
@@ -396,7 +458,7 @@ func handleListComments(roverService *rover.RoverService, jwtSecret []byte) http
 		respBytes, marshalErr := json.Marshal(responseItems)
 		if marshalErr != nil {
 			log.Error().Err(marshalErr).Msg("failed to marshal list comments response")
-			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
@@ -425,12 +487,12 @@ func handleListIntel(roverService *rover.RoverService, jwtSecret []byte, emailHa
 				Str("maxLat", request.URL.Query().Get("maxLat")).
 				Str("maxLon", request.URL.Query().Get("maxLon")).
 				Msg("invalid bbox parameters")
-			server.RespondWithError(writer, http.StatusBadRequest, nil, "invalid bbox parameters")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, errInvalidBboxParams)
 			return
 		}
 		if minLat < geo.MinLat || maxLat > geo.MaxLat || minLon < geo.MinLon || maxLon > geo.MaxLon || minLat >= maxLat || minLon >= maxLon {
 			log.Error().Float64("minLat", minLat).Float64("maxLat", maxLat).Float64("minLon", minLon).Float64("maxLon", maxLon).Msg("bbox out of range")
-			server.RespondWithError(writer, http.StatusBadRequest, nil, "invalid bbox parameters")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, errInvalidBboxParams)
 			return
 		}
 
@@ -438,14 +500,14 @@ func handleListIntel(roverService *rover.RoverService, jwtSecret []byte, emailHa
 		geohashes := geo.BboxToGeohash5Cells(minLat, minLon, maxLat, maxLon)
 		if len(geohashes) > maxGeohashQueryCells {
 			log.Error().Int("cells", len(geohashes)).Msg("bbox query area too large")
-			server.RespondWithError(writer, http.StatusBadRequest, nil, "query area too large")
+			server.RespondWithError(writer, http.StatusBadRequest, nil, errQueryAreaTooLarge)
 			return
 		}
 
 		items, listErr := roverService.ListPrivateIntel(request.Context(), emailHash, geohashes)
 		if listErr != nil {
 			log.Error().Err(listErr).Msg("failed to list intel")
-			server.RespondWithError(writer, http.StatusInternalServerError, listErr, "failed to list intel")
+			server.RespondWithError(writer, http.StatusInternalServerError, listErr, errFailedToListIntel)
 			return
 		}
 
@@ -463,7 +525,7 @@ func handleListIntel(roverService *rover.RoverService, jwtSecret []byte, emailHa
 		respBytes, marshalErr := json.Marshal(responseItems)
 		if marshalErr != nil {
 			log.Error().Err(marshalErr).Msg("failed to marshal list intel response")
-			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, "failed to marshal response")
+			server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
 			return
 		}
 		server.RespondWithOk(writer, respBytes)
@@ -564,6 +626,7 @@ func main() {
 	mux.HandleFunc("DELETE /rover/intel/{geohash}/{key}", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleDeleteIntel(roverService, jwtSecret, emailHashPepper)))))
 	mux.HandleFunc("GET /rover/intel/{geohash}/{key}/comments", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleListComments(roverService, jwtSecret)))))
 	mux.HandleFunc("POST /rover/intel/{geohash}/{key}/comments", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxCommentBodyBytes, handleAddComment(roverService, jwtSecret, emailHashPepper)))))
+	mux.HandleFunc("POST /rover/intel/{geohash}/{key}/image-url", server.WithOriginCheck(allowedOrigins, server.WithCookieAuth(jwtSecret, server.WithRequestSizeLimit(maxSmallRequestBodyBytes, handleGetImageUploadURL(roverService, jwtSecret)))))
 
 	apiServer := &http.Server{
 		Addr:    listenAddr(),

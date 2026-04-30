@@ -1206,7 +1206,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                             className="intel-review-comments-btn"
                             type="button"
                             onClick={() => setCommentsOpen(true)}>
-                            Comments
+                            Notes
                         </button>
                     </div>
                 </div>

@@ -15,7 +15,7 @@ import LocateArrow from "./LocateArrow.jsx";
 import NavArrow from "./NavArrow.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout } from "../utils/api";
+import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl } from "../utils/api";
 import { calculateBearing, calculateDistanceKm } from "../utils/geo";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
@@ -170,11 +170,12 @@ export default function Rover() {
         }
     };
 
-    const setError = (message, error, type = null) => {
+    const setError = (message, error, type = null, onRetry = null) => {
         setAppError({
             message,
             details: error ? `${error.name ? error.name + ": " : ""}${error.message || String(error)}` : null,
             type,
+            onRetry,
         });
     };
 
@@ -221,6 +222,32 @@ export default function Rover() {
     };
 
 
+    const uploadConfirmedIntelImage = async (confirmedPoint, encryptedImageBuffer, presignedPutUrl, silent) => {
+        try {
+            await uploadIntelImage(presignedPutUrl, encryptedImageBuffer);
+            setIntelPoints((prev) => prev.map((p) => {
+                if (p.key !== confirmedPoint.key) return p;
+                return { ...p, hasImage: true };
+            }));
+        } catch (imageErr) {
+            if (!silent) {
+                console.error('failed to upload image:', imageErr);
+                const retry = async () => {
+                    try {
+                        const freshUrl = await getImageUploadUrl(confirmedPoint);
+                        await uploadConfirmedIntelImage(confirmedPoint, encryptedImageBuffer, freshUrl, false);
+                    } catch (retryErr) {
+                        console.error('image upload retry failed:', retryErr);
+                        setError("Intel saved — image upload failed.", retryErr, 'imageUpload', retry);
+                    }
+                };
+                setError("Intel saved — image upload failed. Tap ↻ to retry.", imageErr, 'imageUpload', retry);
+            } else {
+                throw imageErr;
+            }
+        }
+    };
+
     const onKeepIntel = async (intelPoint, silent = false) => {
         const key = cryptoKeyRef.current;
         try {
@@ -236,25 +263,20 @@ export default function Rover() {
             });
             const encryptedPayload = await encryptText(key, payload);
 
-            let encryptedImage = null;
+            let encryptedImageBuffer = null;
             if (intelPoint.b64image) {
                 const b64 = intelPoint.b64image.includes(',')
                     ? intelPoint.b64image.split(',')[1]
                     : intelPoint.b64image;
                 const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-                const encBytes = new Uint8Array(await encryptBytes(key, bytes.buffer));
-                let binary = "";
-                for (let i = 0; i < encBytes.length; i++) {
-                    binary += String.fromCharCode(encBytes[i]);
-                }
-                encryptedImage = btoa(binary);
+                encryptedImageBuffer = await encryptBytes(key, bytes.buffer);
             }
 
-            const { key: rowKey } = await storeIntel({
+            const { key: rowKey, presignedPutUrl } = await storeIntel({
                 key: intelPoint.key,
                 geohash,
                 encryptedPayload,
-                encryptedImage,
+                hasImage: !!encryptedImageBuffer,
                 timestamp: intelPoint.timestamp,
             }, silent ? undefined : (attempt) => setCloudSaveMessage(attempt === 0 ? "Saving Intel..." : "Trying again..."));
 
@@ -266,9 +288,10 @@ export default function Rover() {
                     geohash,
                     confirmed: true,
                     b64image: null,
-                    hasImage: !!intelPoint.b64image,
+                    hasImage: false,
                 };
             }));
+            setAppError((prev) => prev?.type === 'save' ? null : prev);
 
             if (intelPoint.tags?.length > 0) {
                 setLastUsedTags(intelPoint.tags);
@@ -276,10 +299,16 @@ export default function Rover() {
                     .then(() => loadTags().then((tags) => setAllTags(tags)))
                     .catch((saveTagsErr) => console.error("failed to save tags:", saveTagsErr));
             }
+
+            if (presignedPutUrl && encryptedImageBuffer) {
+                if (!silent) setCloudSaveMessage("Uploading Image...");
+                const confirmedPoint = { key: rowKey, geohash };
+                await uploadConfirmedIntelImage(confirmedPoint, encryptedImageBuffer, presignedPutUrl, silent);
+            }
         } catch (error) {
             if (!silent) {
                 console.error('failed to store intel:', error);
-                setError("Couldn't save to cloud — intel kept in memory. Tap the marker to retry.", error);
+                setError("Couldn't save to cloud — intel kept in memory. Tap the marker to retry.", error, 'save');
             }
             throw error;
         } finally {
@@ -306,6 +335,7 @@ export default function Rover() {
     };
 
     const onDeleteConfirmedIntel = async (intelPoint) => {
+        setCloudSaveMessage("Deleting Intel...");
         try {
             const { alreadyDeleted } = await deleteIntel(intelPoint);
             setIntelPoints((previous) => previous.filter((point) => point.key !== intelPoint.key));
@@ -315,6 +345,8 @@ export default function Rover() {
         } catch (error) {
             console.error('failed to delete intel:', error);
             setError("Failed to delete intel — please try again.", error);
+        } finally {
+            setCloudSaveMessage(null);
         }
     };
 
@@ -431,6 +463,7 @@ export default function Rover() {
     const onSavePlannedIntel = async (description, tags) => {
         const key = cryptoKeyRef.current;
         const state = plannedDialogState;
+        setCloudSaveMessage(state.mode === "add" ? "Saving Note..." : "Updating Note...");
         try {
             if (state.mode === "add") {
                 const { lat, lon } = state;
@@ -491,12 +524,15 @@ export default function Rover() {
         } catch (error) {
             console.error("failed to save planned intel:", error);
             setError("Failed to save note — please try again.", error);
+        } finally {
+            setCloudSaveMessage(null);
         }
     };
 
     const onDeletePlannedIntel = async () => {
         const intelPoint = plannedDialogState?.intelPoint;
         if (!intelPoint) return;
+        setCloudSaveMessage("Deleting Note...");
         try {
             const { alreadyDeleted } = await deleteIntel(intelPoint);
             setIntelPoints((prev) => prev.filter((p) => p.key !== intelPoint.key));
@@ -507,6 +543,8 @@ export default function Rover() {
         } catch (error) {
             console.error("failed to delete planned intel:", error);
             setError("Failed to delete note — please try again.", error);
+        } finally {
+            setCloudSaveMessage(null);
         }
     };
 
@@ -543,6 +581,9 @@ export default function Rover() {
                     <span className="rover-error-banner-actions">
                         { appError.details && (
                             <button className="rover-error-banner-details" onClick={() => setErrorDetailsIsOpen(true)}>Details</button>
+                        )}
+                        { appError.onRetry && (
+                            <button className="rover-error-banner-retry" onClick={appError.onRetry}>↻</button>
                         )}
                         <button className="rover-error-banner-dismiss" onClick={dismissError}>✕</button>
                     </span>
@@ -662,7 +703,7 @@ export default function Rover() {
                     </button>
                 </nav>
             </div>
-            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} subMessage="Large images may take longer." /> }
+            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} subMessage={cloudSaveMessage === "Saving Intel..." || cloudSaveMessage === "Trying again..." ? "Large images may take longer." : null} /> }
             { (() => {
                 const pendingCount = intelPoints.filter((p) => !p.confirmed && !p.planned).length;
                 if (saveAllState && saveAllState !== 'saving') {

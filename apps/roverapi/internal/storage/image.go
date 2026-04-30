@@ -14,6 +14,11 @@ import (
 )
 
 //
+// consts and globals
+
+const imageObjectKeySuffix = ".jpg"
+
+//
 // types
 
 type S3IntelImageRepository struct {
@@ -61,7 +66,7 @@ func (r *S3IntelImageRepository) Initialize(ctx context.Context) error {
 
 func (r *S3IntelImageRepository) StoreIntelImage(ctx context.Context, key string, imageData []byte) error {
 	log.Trace().Msg("StoreIntelImage")
-	objectKey := key + ".jpg"
+	objectKey := key + imageObjectKeySuffix
 	_, putErr := r.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      &r.bucketName,
 		Key:         &objectKey,
@@ -77,7 +82,7 @@ func (r *S3IntelImageRepository) StoreIntelImage(ctx context.Context, key string
 
 func (r *S3IntelImageRepository) GetIntelImage(ctx context.Context, key string) ([]byte, error) {
 	log.Trace().Msg("GetIntelImage")
-	objectKey := key + ".jpg"
+	objectKey := key + imageObjectKeySuffix
 	resp, getErr := r.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &r.bucketName,
 		Key:    &objectKey,
@@ -95,9 +100,23 @@ func (r *S3IntelImageRepository) GetIntelImage(ctx context.Context, key string) 
 	return imageData, nil
 }
 
+func (r *S3IntelImageRepository) GetIntelImagePresignedPutURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	log.Trace().Msg("GetIntelImagePresignedPutURL")
+	objectKey := key + imageObjectKeySuffix
+	presigned, presignErr := r.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: &r.bucketName,
+		Key:    &objectKey,
+	}, s3.WithPresignExpires(expiry))
+	if presignErr != nil {
+		log.Error().Err(presignErr).Str("key", key).Msg("error presigning intel image PUT URL")
+		return "", presignErr
+	}
+	return presigned.URL, nil
+}
+
 func (r *S3IntelImageRepository) GetIntelImagePresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	log.Trace().Msg("GetIntelImagePresignedURL")
-	objectKey := key + ".jpg"
+	objectKey := key + imageObjectKeySuffix
 	presigned, presignErr := r.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: &r.bucketName,
 		Key:    &objectKey,
@@ -111,7 +130,7 @@ func (r *S3IntelImageRepository) GetIntelImagePresignedURL(ctx context.Context, 
 
 func (r *S3IntelImageRepository) DeleteIntelImage(ctx context.Context, key string) error {
 	log.Trace().Msg("DeleteIntelImage")
-	objectKey := key + ".jpg"
+	objectKey := key + imageObjectKeySuffix
 	_, deleteErr := r.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: &r.bucketName,
 		Key:    &objectKey,

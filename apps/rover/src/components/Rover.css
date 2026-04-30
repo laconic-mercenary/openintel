@@ -247,6 +247,16 @@
   flex-shrink: 0;
 }
 
+.rover-error-banner-retry {
+  background: none;
+  border: none;
+  color: #b00020;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .rover-menu-nav {
     flex-direction: column;

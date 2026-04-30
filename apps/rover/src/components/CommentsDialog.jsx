@@ -78,7 +78,7 @@ export default function CommentsDialog({ intelPoint, cryptoKey, onClose }) {
         } catch (submitErr) {
             console.error("failed to add comment:", submitErr);
             if (submitErr.message === 'comment_limit_reached') {
-                setError(`Comment limit of ${maxComments} reached.`);
+                setError(`Note limit of ${maxComments} reached.`);
             } else {
                 setError("Failed to submit comment — please try again.");
             }
@@ -104,7 +104,7 @@ export default function CommentsDialog({ intelPoint, cryptoKey, onClose }) {
         <div className="comments-overlay" onClick={() => onCloseRef.current?.()}>
             <div className="comments-dialog" onClick={(e) => e.stopPropagation()}>
                 <button className="comments-close" type="button" onClick={() => onCloseRef.current?.()}>✕</button>
-                <h3 className="comments-title">Comments</h3>
+                <h3 className="comments-title">Notes</h3>
 
                 <div className="comments-list">
                     { loading && <p className="comments-empty">Loading...</p> }
@@ -129,7 +129,7 @@ export default function CommentsDialog({ intelPoint, cryptoKey, onClose }) {
                         className="comments-input"
                         value={text}
                         onChange={(e) => setText(e.target.value)}
-                        placeholder="Add a comment…"
+                        placeholder="Add a note…"
                         maxLength={maxCommentLen}
                         rows={3}
                         disabled={submitting}

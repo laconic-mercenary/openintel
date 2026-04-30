@@ -2,7 +2,6 @@ package rover
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,7 +16,8 @@ import (
 // consts and globals
 
 const (
-	intelImageURLExpiry = time.Hour
+	intelImageURLExpiry       = time.Hour
+	imageUploadURLExpiry      = 10 * time.Minute
 )
 
 const (
@@ -30,6 +30,12 @@ var (
 	ErrGeohashRequired          = errors.New("geohash is required")
 	ErrEmailHashRequired        = errors.New("email hash is required")
 )
+
+type StorePrivateIntelResult struct {
+	RowKey          string
+	ImageKey        string
+	PresignedPutURL string
+}
 
 //
 // types
@@ -82,44 +88,61 @@ func WithCommentRepository(repo storage.PrivateIntelCommentRepository) RoverServ
 //
 // methods
 
-func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storage.PrivateIntel) (string, error) {
+func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storage.PrivateIntel) (StorePrivateIntelResult, error) {
 	log.Trace().Msg("StorePrivateIntel")
 	if validation.IsEmptyStr(intel.Key) {
-		return "", ErrKeyRequired
+		return StorePrivateIntelResult{}, ErrKeyRequired
 	}
 	if validation.IsEmptyStr(intel.Geohash) {
-		return "", ErrGeohashRequired
+		return StorePrivateIntelResult{}, ErrGeohashRequired
 	}
 	if validation.IsEmptyStr(intel.EmailHash) {
-		return "", ErrEmailHashRequired
+		return StorePrivateIntelResult{}, ErrEmailHashRequired
 	}
-	if validation.IsEmptyStr(intel.EncryptedPayload) && validation.IsEmptyStr(intel.Image) {
-		return "", ErrEncryptedPayloadRequired
+	if validation.IsEmptyStr(intel.EncryptedPayload) {
+		return StorePrivateIntelResult{}, ErrEncryptedPayloadRequired
 	}
 
-	if !validation.IsEmptyStr(intel.Image) {
-		imageData, decodeErr := base64.StdEncoding.DecodeString(intel.Image)
-		if decodeErr != nil {
-			log.Error().Err(decodeErr).Str("key", intel.Key).Msg("error decoding image data")
-			return "", fmt.Errorf("invalid image data: %w", decodeErr)
-		}
-		storeImageErr := service.imageRepository.StoreIntelImage(ctx, intel.Key, imageData)
-		if storeImageErr != nil {
-			log.Error().Err(storeImageErr).Str("key", intel.Key).Msg("error storing intel image")
-			return "", fmt.Errorf("failed to store image: %w", storeImageErr)
-		}
+	var presignedPutURL string
+	if intel.HasImage {
 		intel.ImageKey = intel.Key
+		putURL, urlErr := service.imageRepository.GetIntelImagePresignedPutURL(ctx, intel.Key, imageUploadURLExpiry)
+		if urlErr != nil {
+			log.Error().Err(urlErr).Str("key", intel.Key).Msg("error generating presigned PUT URL")
+			return StorePrivateIntelResult{}, fmt.Errorf("failed to generate image upload URL: %w", urlErr)
+		}
+		presignedPutURL = putURL
 	}
 
 	intelMeta := intel
-	intelMeta.Image = ""
 	intelMeta.Timestamp = 0
 	rowKey, storeMetaErr := service.metadataRepository.StorePrivateIntelMetadata(ctx, intelMeta)
 	if storeMetaErr != nil {
 		log.Error().Err(storeMetaErr).Str("key", intel.Key).Msg("error storing intel metadata")
-		return "", fmt.Errorf("failed to store metadata: %w", storeMetaErr)
+		return StorePrivateIntelResult{}, fmt.Errorf("failed to store metadata: %w", storeMetaErr)
 	}
-	return rowKey, nil
+	return StorePrivateIntelResult{
+		RowKey:          rowKey,
+		ImageKey:        intel.ImageKey,
+		PresignedPutURL: presignedPutURL,
+	}, nil
+}
+
+func (service *RoverService) GetImageUploadURL(ctx context.Context, rowKey string) (string, error) {
+	log.Trace().Msg("GetImageUploadURL")
+	if validation.IsEmptyStr(rowKey) {
+		return "", ErrKeyRequired
+	}
+	imageKey, imageKeyErr := imageKeyFromRowKey(rowKey)
+	if imageKeyErr != nil {
+		return "", imageKeyErr
+	}
+	putURL, urlErr := service.imageRepository.GetIntelImagePresignedPutURL(ctx, imageKey, imageUploadURLExpiry)
+	if urlErr != nil {
+		log.Error().Err(urlErr).Str("rowKey", rowKey).Msg("error generating presigned PUT URL for retry")
+		return "", fmt.Errorf("failed to generate image upload URL: %w", urlErr)
+	}
+	return putURL, nil
 }
 
 func (service *RoverService) GetPrivateIntelImageURL(ctx context.Context, rowKey string) (string, error) {

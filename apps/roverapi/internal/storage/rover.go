@@ -27,6 +27,7 @@ type PrivateIntel struct {
 	ImageKey            string
 	// transient fields — populated during store, not persisted in table
 	Image     string
+	HasImage  bool
 	Timestamp int64
 }
 
@@ -60,5 +61,6 @@ type IntelImageRepository interface {
 	StoreIntelImage(ctx context.Context, key string, imageData []byte) error
 	GetIntelImage(ctx context.Context, key string) ([]byte, error)
 	GetIntelImagePresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error)
+	GetIntelImagePresignedPutURL(ctx context.Context, key string, expiry time.Duration) (string, error)
 	DeleteIntelImage(ctx context.Context, key string) error
 }
