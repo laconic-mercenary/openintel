@@ -1,0 +1,123 @@
+.intel-list-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0d0d0d;
+    color: rgba(232, 213, 176, 0.85);
+}
+
+.intel-list-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(200, 170, 100, 0.12);
+    flex-shrink: 0;
+}
+
+.intel-list-search {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(200, 170, 100, 0.2);
+    border-radius: 0.5rem;
+    color: rgba(232, 213, 176, 0.85);
+    font-size: 1rem;
+    padding: 0.5rem 0.75rem;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.intel-list-search::placeholder {
+    color: rgba(200, 170, 100, 0.35);
+}
+
+.intel-list-search:focus {
+    border-color: rgba(200, 170, 100, 0.45);
+}
+
+.intel-list-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.intel-list-empty {
+    margin: 3rem 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgba(196, 168, 122, 0.4);
+    letter-spacing: 0.04em;
+}
+
+.intel-list-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(200, 170, 100, 0.08);
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+}
+
+.intel-list-row:hover {
+    background: rgba(200, 170, 100, 0.06);
+}
+
+.intel-list-row:active {
+    background: rgba(200, 170, 100, 0.12);
+}
+
+.intel-list-row-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.intel-type-icon {
+    flex-shrink: 0;
+}
+
+.intel-type-unconfirmed {
+    color: #c29a57;
+}
+
+.intel-type-confirmed {
+    color: #6d9164;
+}
+
+.intel-type-planned {
+    color: #a33f36;
+}
+
+.intel-list-row-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    overflow: hidden;
+}
+
+.intel-list-row-desc {
+    font-size: 0.85rem;
+    color: rgba(232, 213, 176, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.intel-list-row-meta {
+    display: flex;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    color: rgba(196, 168, 122, 0.45);
+    letter-spacing: 0.04em;
+}
+
+.intel-list-row-photo {
+    flex-shrink: 0;
+    color: rgba(200, 170, 100, 0.2);
+}
+
+.intel-list-row-photo.has-photo {
+    color: rgba(200, 170, 100, 0.75);
+}

@@ -28,14 +28,14 @@
     left: 0.75rem;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 0.9rem;
+    color: #cc3333;
+    font-size: 1.3rem;
     cursor: pointer;
     padding: 0;
 }
 
 .comments-close:hover {
-    color: #fff;
+    color: #ff4444;
 }
 
 .comments-title {

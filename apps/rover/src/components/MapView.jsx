@@ -10,11 +10,9 @@ import markerCommunityUrl from "../assets/markers/intel-community.svg";
 import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 
 import { calculateSimpleCoord } from "../utils/geo";
-import { getIntelImageUrl } from "../utils/api";
-import { decryptBytes } from "../utils/crypto";
-import CommentsDialog from "./CommentsDialog.jsx";
+import ReviewDialog from "./ReviewDialog.jsx";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
     
     // Consts
     
@@ -30,12 +28,6 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const intelActionsPopupOffset = 10;
     const debounceEndMills = 300;
     const zoomInLevel = 16;
-    const intelPopupTypes = {
-        newActions: "new-actions",
-        confirmedActions: "confirmed-actions",
-        confirmedDeleteConfirm: "confirmed-delete-confirm",
-        plannedActions: "planned-actions",
-    };
     const markerImageIDs = {
         confirmed: "marker-confirmed",
         new: "marker-new",
@@ -147,18 +139,13 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const exportIntelRef = useRef(onExportIntel);
     const navigateToRef = useRef(onNavigateTo);
     const activeIntelActionsPopupRef = useRef(null);
-    const activeIntelActionPointKeyRef = useRef(null);
-    const activeIntelActionPopupTypeRef = useRef(null);
     const markerClickConsumedRef = useRef(false);
     const deleteConfirmedIntelRef = useRef(onDeleteConfirmedIntel);
     const onBoundsChangeRef = useRef(onBoundsChange);
     const boundsDebounceRef = useRef(null);
     const onAddPlannedIntelRef = useRef(onAddPlannedIntel);
     const editPlannedIntelRef = useRef(onEditPlannedIntel);
-    const [reviewIntelPointKey, setReviewIntelPointKey] = useState(null);
-    const [reviewImageUrl, setReviewImageUrl] = useState(null);
-    const [commentsOpen, setCommentsOpen] = useState(false);
-    const reviewBlobUrlRef = useRef(null);
+    const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
 
     // Effects
 
@@ -175,42 +162,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
 
     useEffect(() => {
         intelPointsRef.current = intelPoints;
-        const activeIntelActionPointKey = activeIntelActionPointKeyRef.current;
-        if (!activeIntelActionPointKey) {
-            return;
-        }
-        const activeIntelPoint = intelPoints.find((point) => point.key === activeIntelActionPointKey);
-        if (!activeIntelPoint) {
-            removeIntelActionsPopup();
-            return;
-        }
-        const activePopupType = activeIntelActionPopupTypeRef.current;
-        if (activePopupType === intelPopupTypes.newActions && (activeIntelPoint.confirmed || activeIntelPoint.community)) {
-            removeIntelActionsPopup();
-            return;
-        }
-        if (activePopupType === intelPopupTypes.confirmedActions && !activeIntelPoint.confirmed) {
-            removeIntelActionsPopup();
-            return;
-        }
-        if (activePopupType === intelPopupTypes.confirmedDeleteConfirm && !activeIntelPoint.confirmed) {
-            removeIntelActionsPopup();
-            return;
-        }
-        if (activePopupType === intelPopupTypes.plannedActions && !activeIntelPoint.planned) {
-            removeIntelActionsPopup();
+        if (reviewIntelPoint && !intelPoints.find((p) => p.key === reviewIntelPoint.key)) {
+            setReviewIntelPoint(null);
         }
     }, [intelPoints]);
-
-    useEffect(() => {
-        if (!reviewIntelPointKey) {
-            return;
-        }
-        const reviewIntelPoint = intelPoints.find((point) => point.key === reviewIntelPointKey);
-        if (!reviewIntelPoint || !reviewIntelPoint.confirmed) {
-            setReviewIntelPointKey(null);
-        }
-    }, [intelPoints, reviewIntelPointKey]);
 
     useEffect(() => {
         keepIntelRef.current = onKeepIntel;
@@ -243,44 +198,6 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         editPlannedIntelRef.current = onEditPlannedIntel;
     }, [onEditPlannedIntel]);
-
-    useEffect(() => {
-        if (!reviewIntelPointKey) {
-            if (reviewBlobUrlRef.current) {
-                URL.revokeObjectURL(reviewBlobUrlRef.current);
-                reviewBlobUrlRef.current = null;
-            }
-            setReviewImageUrl(null);
-            setCommentsOpen(false);
-            return;
-        }
-        const point = intelPoints.find((p) => p.key === reviewIntelPointKey);
-        if (!point?.hasImage) {
-            setReviewImageUrl(null);
-            return;
-        }
-        let cancelled = false;
-        getIntelImageUrl(point)
-            .then((presignedUrl) => fetch(presignedUrl))
-            .then((response) => response.arrayBuffer())
-            .then((encryptedBuffer) => decryptBytes(cryptoKey, encryptedBuffer))
-            .then((plaintextBuffer) => {
-                if (cancelled) return;
-                if (reviewBlobUrlRef.current) {
-                    URL.revokeObjectURL(reviewBlobUrlRef.current);
-                }
-                const blobUrl = URL.createObjectURL(new Blob([plaintextBuffer], { type: 'image/jpeg' }));
-                reviewBlobUrlRef.current = blobUrl;
-                setReviewImageUrl(blobUrl);
-            })
-            .catch((error) => {
-                if (!cancelled) {
-                    console.error("failed to load intel image:", error);
-                    onError?.("Failed to load image — please try again.");
-                }
-            });
-        return () => { cancelled = true; };
-    }, [reviewIntelPointKey]);
 
     useEffect(() => {
         if (!geolocationIsEnabled) {
@@ -504,16 +421,16 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         }
 
         if (intelType === "new") {
-            onNewIntelClick(clickedIntel, event.lngLat);
+            onNewIntelClick(clickedIntel);
             return;
         }
-        removeIntelActionsPopup(); // non-new, close any popups first
+        removeIntelActionsPopup();
         if (intelType === "planned") {
-            onPlannedIntelClick(clickedIntel, event.lngLat);
+            onPlannedIntelClick(clickedIntel);
             return;
         }
         if (intelType === "confirmed") {
-            onConfirmedIntelClick(clickedIntel, event.lngLat);
+            onConfirmedIntelClick(clickedIntel);
             return;
         }
         if (intelType === "community") {
@@ -524,197 +441,23 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         console.warn(`unknown intel type clicked: ${intelType}`);
     };
 
-    const onNewIntelClick = (intelPoint, lngLat) => {
-        const map = roverMapRef.current;
-        if (!map) {
-            return;
-        }
+    const onNewIntelClick = (intelPoint) => {
         removeIntelActionsPopup();
-
-        const popupContent = createKeepDiscardPopup(
-            () => {
-                // TODO send this new intel to the backend for
-                // validation and persistence
-                keepIntelRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-            () => {
-                // no need for backend calls because new intel
-                // is not persisted
-                discardIntelRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-            () => {
-                exportIntelRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-            () => {
-                navigateToRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-        );
-
-        const keepDiscardConfirm = new MLPopup({
-            className: "intel-point-actions-popup",
-            closeButton: false,
-            closeOnClick: false,
-            closeOnMove: false,
-            anchor: "top",
-            offset: intelActionsPopupOffset,
-        })
-            .setLngLat(lngLat)
-            .setDOMContent(popupContent)
-            .addTo(map);
-
-        keepDiscardConfirm.on("close", () => {
-            if (activeIntelActionsPopupRef.current === keepDiscardConfirm) {
-                activeIntelActionsPopupRef.current = null;
-                activeIntelActionPointKeyRef.current = null;
-                activeIntelActionPopupTypeRef.current = null;
-            }
-        });
-
-        activeIntelActionsPopupRef.current = keepDiscardConfirm;
-        activeIntelActionPointKeyRef.current = intelPoint.key;
-        activeIntelActionPopupTypeRef.current = intelPopupTypes.newActions;
+        setReviewIntelPoint(intelPoint);
     };
 
-    const onConfirmedIntelClick = (intelPoint, lngLat) => {
-        const map = roverMapRef.current;
-        if (!map) {
-            return;
-        }
+    const onConfirmedIntelClick = (intelPoint) => {
         removeIntelActionsPopup();
-
-        const popupContent = createReviewDeletePopup(
-            () => {
-                setReviewIntelPointKey(intelPoint.key);
-                removeIntelActionsPopup();
-            },
-            () => {
-                showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
-            },
-            () => {
-                navigateToRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-        );
-
-        const reviewDeletePopup = new MLPopup({
-            className: "intel-point-actions-popup",
-            closeButton: false,
-            closeOnClick: false,
-            closeOnMove: false,
-            anchor: "top",
-            offset: intelActionsPopupOffset,
-        })
-            .setLngLat(lngLat)
-            .setDOMContent(popupContent)
-            .addTo(map);
-
-        reviewDeletePopup.on("close", () => {
-            if (activeIntelActionsPopupRef.current === reviewDeletePopup) {
-                activeIntelActionsPopupRef.current = null;
-                activeIntelActionPointKeyRef.current = null;
-                activeIntelActionPopupTypeRef.current = null;
-            }
-        });
-
-        activeIntelActionsPopupRef.current = reviewDeletePopup;
-        activeIntelActionPointKeyRef.current = intelPoint.key;
-        activeIntelActionPopupTypeRef.current = intelPopupTypes.confirmedActions;
-    };
-
-    const showConfirmedDeleteConfirmPopup = (intelPoint, lngLat) => {
-        const map = roverMapRef.current;
-        if (!map) {
-            return;
-        }
-        removeIntelActionsPopup();
-
-        const popupContent = createConfirmedDeleteConfirmPopup(
-            () => {
-                deleteConfirmedIntelRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-            () => {
-                removeIntelActionsPopup();
-            },
-        );
-
-        const deleteConfirmPopup = new MLPopup({
-            className: "intel-point-actions-popup",
-            closeButton: false,
-            closeOnClick: false,
-            closeOnMove: false,
-            anchor: "top",
-            offset: intelActionsPopupOffset,
-        })
-            .setLngLat(lngLat)
-            .setDOMContent(popupContent)
-            .addTo(map);
-
-        deleteConfirmPopup.on("close", () => {
-            if (activeIntelActionsPopupRef.current === deleteConfirmPopup) {
-                activeIntelActionsPopupRef.current = null;
-                activeIntelActionPointKeyRef.current = null;
-                activeIntelActionPopupTypeRef.current = null;
-            }
-        });
-
-        activeIntelActionsPopupRef.current = deleteConfirmPopup;
-        activeIntelActionPointKeyRef.current = intelPoint.key;
-        activeIntelActionPopupTypeRef.current = intelPopupTypes.confirmedDeleteConfirm;
+        setReviewIntelPoint(intelPoint);
     };
 
     const onCommunityIntelClick = (_intelPoint) => {
 
     };
 
-    const onPlannedIntelClick = (intelPoint, lngLat) => {
-        const map = roverMapRef.current;
-        if (!map) {
-            return;
-        }
+    const onPlannedIntelClick = (intelPoint) => {
         removeIntelActionsPopup();
-
-        const popupContent = createEditDeletePopup(
-            () => {
-                removeIntelActionsPopup();
-                editPlannedIntelRef.current?.(intelPoint);
-            },
-            () => {
-                showConfirmedDeleteConfirmPopup(intelPoint, lngLat);
-            },
-            () => {
-                navigateToRef.current?.(intelPoint);
-                removeIntelActionsPopup();
-            },
-        );
-
-        const plannedActionsPopup = new MLPopup({
-            className: "intel-point-actions-popup",
-            closeButton: false,
-            closeOnClick: false,
-            closeOnMove: false,
-            anchor: "top",
-            offset: intelActionsPopupOffset,
-        })
-            .setLngLat(lngLat)
-            .setDOMContent(popupContent)
-            .addTo(map);
-
-        plannedActionsPopup.on("close", () => {
-            if (activeIntelActionsPopupRef.current === plannedActionsPopup) {
-                activeIntelActionsPopupRef.current = null;
-                activeIntelActionPointKeyRef.current = null;
-                activeIntelActionPopupTypeRef.current = null;
-            }
-        });
-
-        activeIntelActionsPopupRef.current = plannedActionsPopup;
-        activeIntelActionPointKeyRef.current = intelPoint.key;
-        activeIntelActionPopupTypeRef.current = intelPopupTypes.plannedActions;
+        setReviewIntelPoint(intelPoint);
     };
 
     const applyContextMenuEvent = () => {
@@ -783,180 +526,15 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         contextPopup.on("close", () => {
             if (activeIntelActionsPopupRef.current === contextPopup) {
                 activeIntelActionsPopupRef.current = null;
-                activeIntelActionPointKeyRef.current = null;
-                activeIntelActionPopupTypeRef.current = null;
             }
         });
 
         activeIntelActionsPopupRef.current = contextPopup;
-        activeIntelActionPointKeyRef.current = null;
-        activeIntelActionPopupTypeRef.current = null;
     };
 
     const removeIntelActionsPopup = () => {
         activeIntelActionsPopupRef.current?.remove();
         activeIntelActionsPopupRef.current = null;
-        activeIntelActionPointKeyRef.current = null;
-        activeIntelActionPopupTypeRef.current = null;
-    };
-
-    const createKeepDiscardPopup = (onKeepClick, onDiscardClick, onExportClick, onNavigateClick) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "intel-point-actions";
-
-        const keepButton = document.createElement("button");
-        keepButton.type = "button";
-        keepButton.className = "intel-point-action keep";
-        keepButton.textContent = "Keep";
-        keepButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onKeepClick();
-        });
-
-        const discardButton = document.createElement("button");
-        discardButton.type = "button";
-        discardButton.className = "intel-point-action discard";
-        discardButton.textContent = "Discard";
-        discardButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onDiscardClick();
-        });
-
-        const exportButton = document.createElement("button");
-        exportButton.type = "button";
-        exportButton.className = "intel-point-action export";
-        exportButton.textContent = "Export";
-        exportButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onExportClick();
-        });
-
-        const navigateButton = document.createElement("button");
-        navigateButton.type = "button";
-        navigateButton.className = "intel-point-action navigate";
-        navigateButton.textContent = "Navigate";
-        navigateButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onNavigateClick();
-        });
-
-        wrapper.append(keepButton, discardButton, exportButton, navigateButton);
-        return wrapper;
-    };
-
-    const createReviewDeletePopup = (onReviewClick, onDeleteClick, onNavigateClick) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "intel-point-actions";
-
-        const reviewButton = document.createElement("button");
-        reviewButton.type = "button";
-        reviewButton.className = "intel-point-action review";
-        reviewButton.textContent = "Review";
-        reviewButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onReviewClick();
-        });
-
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.className = "intel-point-action delete";
-        deleteButton.textContent = "Delete";
-        deleteButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onDeleteClick();
-        });
-
-        const navigateButton = document.createElement("button");
-        navigateButton.type = "button";
-        navigateButton.className = "intel-point-action navigate";
-        navigateButton.textContent = "Navigate";
-        navigateButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onNavigateClick();
-        });
-
-        wrapper.append(reviewButton, deleteButton, navigateButton);
-        return wrapper;
-    };
-
-    const createEditDeletePopup = (onEditClick, onDeleteClick, onNavigateClick) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "intel-point-actions";
-
-        const editButton = document.createElement("button");
-        editButton.type = "button";
-        editButton.className = "intel-point-action edit";
-        editButton.textContent = "Edit";
-        editButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onEditClick();
-        });
-
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.className = "intel-point-action delete";
-        deleteButton.textContent = "Delete";
-        deleteButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onDeleteClick();
-        });
-
-        const navigateButton = document.createElement("button");
-        navigateButton.type = "button";
-        navigateButton.className = "intel-point-action navigate";
-        navigateButton.textContent = "Navigate";
-        navigateButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onNavigateClick();
-        });
-
-        wrapper.append(editButton, deleteButton, navigateButton);
-        return wrapper;
-    };
-
-    const createConfirmedDeleteConfirmPopup = (onConfirmDelete, onCancelDelete) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "intel-point-delete-confirm";
-
-        const message = document.createElement("p");
-        message.className = "intel-point-delete-confirm-message";
-        message.textContent = "Delete this intel?";
-
-        const actions = document.createElement("div");
-        actions.className = "intel-point-delete-confirm-actions";
-
-        const yesButton = document.createElement("button");
-        yesButton.type = "button";
-        yesButton.className = "intel-point-action delete";
-        yesButton.textContent = "Yes";
-        yesButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onConfirmDelete();
-        });
-
-        const noButton = document.createElement("button");
-        noButton.type = "button";
-        noButton.className = "intel-point-action cancel";
-        noButton.textContent = "No";
-        noButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            onCancelDelete();
-        });
-
-        actions.append(yesButton, noButton);
-        wrapper.append(message, actions);
-        return wrapper;
-    };
-
-    const formatIntelTimestamp = (timestamp) => {
-        if (!timestamp) {
-            return "Unknown";
-        }
-        const parsedTimestamp = new Date(timestamp);
-        if (Number.isNaN(parsedTimestamp.getTime())) {
-            return "Unknown";
-        }
-        return parsedTimestamp.toLocaleString();
     };
 
     const loadMarkerImageData = (imageURL) => {
@@ -1161,61 +739,22 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         }
     };
 
-    const reviewIntelPoint = reviewIntelPointKey
-        ? intelPoints.find((point) => point.key === reviewIntelPointKey)
-        : null;
-    const reviewIntelTimestamp = formatIntelTimestamp(reviewIntelPoint?.timestamp);
-
     return (
         <>
             <div className="map-rover" ref={roverMapContainerRef}></div>
-            {reviewIntelPoint && (
-                <div className="intel-review-overlay"
-                     onClick={() => setReviewIntelPointKey(null)}>
-                    <div className="intel-review-dialog"
-                         onClick={(event) => event.stopPropagation()}>
-                        <button className="intel-review-close"
-                                type="button"
-                                onClick={() => setReviewIntelPointKey(null)}>
-                            X
-                        </button>
-                        <h3 className="intel-review-title">Intel Review</h3>
-                        {reviewImageUrl ? (
-                            <img className="intel-review-image"
-                                 src={reviewImageUrl}
-                                 alt="Captured intel" />
-                        ) : reviewIntelPoint.hasImage ? (
-                            <div className="intel-review-image-loading" />
-                        ) : (
-                            <div className="intel-review-no-image">No image attached</div>
-                        )}
-                        <p className="intel-review-description">
-                            {reviewIntelPoint.description || "No description provided."}
-                        </p>
-                        <p className="intel-review-meta">
-                            Captured: {reviewIntelTimestamp}
-                        </p>
-                        {reviewIntelPoint.tags?.length > 0 && (
-                            <div className="intel-review-tags">
-                                {reviewIntelPoint.tags.map((tag) => (
-                                    <span key={tag} className="intel-review-tag">{tag}</span>
-                                ))}
-                            </div>
-                        )}
-                        <button
-                            className="intel-review-comments-btn"
-                            type="button"
-                            onClick={() => setCommentsOpen(true)}>
-                            Notes
-                        </button>
-                    </div>
-                </div>
-            )}
-            {reviewIntelPoint && commentsOpen && (
-                <CommentsDialog
+            { reviewIntelPoint && (
+                <ReviewDialog
                     intelPoint={reviewIntelPoint}
                     cryptoKey={cryptoKey}
-                    onClose={() => setCommentsOpen(false)} />
+                    onClose={() => setReviewIntelPoint(null)}
+                    onKeep={(point) => keepIntelRef.current?.(point)}
+                    onDiscard={(point) => discardIntelRef.current?.(point)}
+                    onExport={(point) => exportIntelRef.current?.(point)}
+                    onDelete={(point) => deleteConfirmedIntelRef.current?.(point)}
+                    onEdit={(point) => editPlannedIntelRef.current?.(point)}
+                    onNavigateTo={(point) => navigateToRef.current?.(point)}
+                    onViewOnMap={(point) => { onViewOnMap?.(); navigateToRef.current?.(point); }}
+                    onError={onError} />
             )}
         </>
     );

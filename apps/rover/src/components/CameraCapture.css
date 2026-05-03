@@ -49,14 +49,23 @@
   transform: scale(0.93);
 }
 
-.camera-capture-cancel {
-  background: none;
+.camera-capture-close {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
   border: none;
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 1.2rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
   cursor: pointer;
-  padding: 8px;
-  opacity: 0.85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
 }
 
 .camera-capture-switch {

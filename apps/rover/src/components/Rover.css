@@ -2,152 +2,24 @@
   min-height: 100vh;
 }
 
-.rover-menu-header {
+.rover-view-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 200;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  background: rgba(10, 10, 10, 0.55);
-  backdrop-filter: blur(8px);
-  color: white;
+  bottom: 4rem;
+  z-index: 150;
+  background: #0d0d0d;
 }
 
-.rover-menu-expander {
-  font-size: 22px;
-  background: none;
-  border: none;
-  color: inherit;
-}
-
-.rover-menu-favicon-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-
-.rover-menu-favicon {
-  width: 1.8rem;
-  height: 1.8rem;
-  border-radius: 4px;
-}
-
-.rover-info-popup {
-  position: fixed;
-  top: 3.6rem;
-  right: 12px;
-  z-index: 300;
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0.6rem;
-  padding: 1rem 1.2rem;
-  color: #fff;
-  min-width: 200px;
-}
-
-.rover-info-popup-close {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.6rem;
-  background: none;
-  border: none;
-  color: rgba(255,255,255,0.5);
-  font-size: 0.9rem;
-  cursor: pointer;
-  padding: 0;
-}
-
-.rover-info-popup-title {
-  font-weight: 600;
-  margin-bottom: 0.6rem;
-  padding-right: 1.2rem;
-}
-
-.rover-info-popup-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.rover-info-popup-privacy-link {
-  display: inline-block;
-  margin-top: 0.8rem;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.45);
-  text-decoration: none;
-}
-
-.rover-info-popup-privacy-link:hover {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.rover-menu {
-  position: fixed;
-  top: 3rem;
-  left: 0;
-  right: 0;
-  max-height: 0;
-  overflow: hidden;
-  z-index: 180;
-  background: rgba(10, 10, 10, 0.55);
-  backdrop-filter: blur(8px);
-  transition: max-height 220ms ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.rover-menu.is-open {
-  max-height: 20rem;
-}
-
-.rover-menu-nav {
-  display: flex;
-  width: 100%;
-}
-
-.rover-menu-item {
-  flex: 1;
+.rover-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid rgba(255, 255, 255, 0.08);
-  background: transparent;
-  color: #fff;
-  font-size: 1rem;
-  transition: background 250ms ease, color 250ms ease, transform 250ms ease;
-}
-
-.rover-menu-item-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.rover-menu-item-icon {
-  width: 16px;
-  height: 16px;
-}
-
-.rover-menu-item:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: silver;
-}
-
-.rover-menu-item:active {
-  background: darkgreen;
-  border-color: yellow;
+  height: 100%;
+  color: rgba(196, 168, 122, 0.4);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
 }
 
 .rover-error-banner {
@@ -167,13 +39,6 @@
   font-size: 0.875rem;
 }
 
-.has-error .rover-menu-header {
-  top: 2.5rem;
-}
-
-.has-error .rover-menu {
-  top: calc(2.5rem + 3rem);
-}
 
 .rover-error-banner-actions {
   display: flex;
@@ -257,16 +122,6 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
-  .rover-menu-nav {
-    flex-direction: column;
-  }
-
-  .rover-menu-item {
-    width: 100%;
-    height: 3.5rem;
-  }
-}
 
 .rover-locate-btn,
 .rover-satellite-btn,
@@ -289,30 +144,28 @@
 }
 
 .rover-locate-btn {
-    bottom: 3rem;
+    bottom: 4.5rem;
     color: #60a5fa;
 }
 
 .rover-satellite-btn {
-    bottom: calc(3rem + 3.5rem + 0.6rem);
+    bottom: calc(4.5rem + 3.5rem + 0.6rem);
 }
 
 .rover-get-intel-btn {
-    bottom: calc(3rem + (3.5rem + 0.6rem) * 2);
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 2);
     color: #c29a57;
 }
 
-.rover-save-all-btn,
-.rover-save-all-result {
+.rover-save-all-group,
+.rover-save-all-success {
     position: fixed;
-    bottom: 3rem;
+    bottom: 4.5rem;
     left: 50%;
     transform: translateX(-50%);
     z-index: 200;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1.2rem;
     border-radius: 2rem;
     background: rgba(10, 10, 10, 0.8);
     backdrop-filter: blur(6px);
@@ -320,10 +173,19 @@
     font-size: 0.85rem;
     white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
 }
 
 .rover-save-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
     border: none;
+    background: none;
+    color: #ffffff;
+    font-size: 0.85rem;
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -333,12 +195,46 @@
 }
 
 .rover-save-all-btn:not(:disabled):hover {
-    background: rgba(30, 30, 30, 0.9);
+    background: rgba(255, 255, 255, 0.06);
 }
 
-.rover-save-all-result {
-    color: rgba(255, 255, 255, 0.7);
-    pointer-events: none;
+.rover-save-all-discard {
+    display: flex;
+    align-items: center;
+    padding: 0.6rem 0.85rem;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    background: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.rover-save-all-discard:hover {
+    background: rgba(163, 63, 54, 0.2);
+    color: #e07070;
+}
+
+.rover-save-all-success {
+    gap: 0.6rem;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid rgba(109, 145, 100, 0.45);
+    color: #8cbf84;
+}
+
+.rover-save-all-dismiss {
+    background: none;
+    border: none;
+    color: rgba(140, 191, 132, 0.6);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    margin-left: 0.2rem;
+}
+
+.rover-save-all-dismiss:hover {
+    color: #8cbf84;
 }
 
 @keyframes rover-spin {
@@ -353,7 +249,7 @@
 .rover-nav-cancel-btn {
     position: fixed;
     right: 1rem;
-    bottom: calc(3rem + (3.5rem + 0.6rem) * 3);
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 3);
     z-index: 200;
     width: 3.5rem;
     height: 3.5rem;

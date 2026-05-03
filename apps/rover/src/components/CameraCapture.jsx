@@ -127,10 +127,11 @@ export default function CameraCapture({ onCapture, onCancel }) {
                    playsInline
                    poster={cameraPoster} />
             <canvas ref={canvasRef} style={{ display: "none" }} />
+            <button className="camera-capture-close" onClick={() => { stopCamera(); onCancel(); }} aria-label="Cancel">✕</button>
             <div className="camera-capture-controls">
                 { cameraError && <p className="camera-capture-error">{cameraError}</p> }
                 <div className="camera-capture-actions">
-                    <button className="camera-capture-cancel" onClick={() => { stopCamera(); onCancel(); }}>Cancel</button>
+                    <span className="camera-capture-switch-placeholder" />
                     <button className="camera-capture-snap" onClick={onSnap} aria-label="Take photo" />
                     { cameras.length > 1
                         ? <button className="camera-capture-switch" onClick={onSwitchCamera}><SwitchCamera size={22} /></button>
