@@ -165,7 +165,6 @@ export default function Rover() {
         const intelCandidate = newIntelCandidate(description, b64Image, coords, tags);
         setIntelPoints((previous) => [...previous, intelCandidate]);
         setZoomToNewIntelSignal((previous) => previous + 1);
-        setIntelIsOpen(false);
         return intelCandidate;
     };
 
@@ -461,7 +460,6 @@ export default function Rover() {
             longitude: coords?.longitude ?? null,
             accuracy: coords?.accuracy ?? null,
         });
-        setIntelIsOpen(false);
     };
 
     const onDiscardIntel = (intelPoint) => {
@@ -683,7 +681,8 @@ export default function Rover() {
                     flyToLocationSignal={flyToLocationSignal}
                     mapCenterRef={mapCenterRef}
                     isSatellite={isSatellite}
-                    geolocationIsEnabled={geolocationIsEnabled} />
+                    geolocationIsEnabled={geolocationIsEnabled}
+                    navTarget={navTarget} />
             { activeTab === 'map' && navTarget && (
                 <button className="rover-nav-cancel-btn" onClick={() => setNavTarget(null)} aria-label="Cancel navigation">✕</button>
             )}
@@ -691,7 +690,9 @@ export default function Rover() {
                 <NavArrow
                     bearing={position ? calculateBearing(position.coords.latitude, position.coords.longitude, navTarget.latitude, navTarget.longitude) : 0}
                     distanceKm={position ? calculateDistanceKm(position.coords.latitude, position.coords.longitude, navTarget.latitude, navTarget.longitude) : 0}
-                    hasPosition={!!position} />
+                    hasPosition={!!position}
+                    targetLat={navTarget.latitude}
+                    targetLon={navTarget.longitude} />
             )}
             { activeTab === 'map' && (
                 <>

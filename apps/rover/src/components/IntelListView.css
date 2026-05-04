@@ -12,6 +12,10 @@
     flex-shrink: 0;
 }
 
+.intel-list-search-wrap {
+    position: relative;
+}
+
 .intel-list-search {
     width: 100%;
     background: rgba(255, 255, 255, 0.05);
@@ -19,9 +23,27 @@
     border-radius: 0.5rem;
     color: rgba(232, 213, 176, 0.85);
     font-size: 1rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 2.2rem 0.5rem 0.75rem;
     box-sizing: border-box;
     outline: none;
+}
+
+.intel-list-search-clear {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(196, 168, 122, 0.5);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 0.2rem;
+    line-height: 1;
+}
+
+.intel-list-search-clear:hover {
+    color: rgba(196, 168, 122, 0.9);
 }
 
 .intel-list-search::placeholder {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Cloud, CloudOff, EyeOff, Lock, Save } from "lucide-react";
+import { Camera, Cloud, CloudOff, EyeOff, HelpCircle, Lock, Save } from "lucide-react";
 import TagInput from "./TagInput.jsx";
 import CameraCapture from "./CameraCapture.jsx";
 import "./CollectForm.css";
@@ -9,6 +9,14 @@ import "./CollectForm.css";
 const secretTag = "secret";
 const descriptionMaxLen = 300;
 const successDismissMs = 3000;
+
+const tips = [
+    { heading: "Photo only", body: "Tap Photo + Save without entering a description — your location is recorded automatically." },
+    { heading: "Text only", body: "Type a description and tap Save — no photo required." },
+    { heading: "Projects via tags", body: "Add a shared tag (e.g. \"op-atlas\") to group related intel points into a project." },
+    { heading: "Tag suggestions", body: "The dropdown shows tags from intel currently loaded in your map view. Tags from out-of-range intel won't appear — just type them directly." },
+    { heading: "Secret tag", body: "Intel tagged Secret is hidden from the map and the Intel list, keeping it out of the normal view." },
+];
 
 export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestions = [], saveToCloudDefault = true, clearSignal = 0 }) {
 
@@ -22,6 +30,7 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
     const [cameraOpen, setCameraOpen] = useState(false);
     const [userError, setUserError] = useState(null);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [showTips, setShowTips] = useState(false);
 
     // References
 
@@ -113,6 +122,22 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
             { userError && (
                 <div className="collect-banner collect-banner--error">{userError}</div>
             )}
+            { showTips && (
+                <div className="collect-tips-overlay" onClick={() => setShowTips(false)}>
+                    <div className="collect-tips-card" onClick={(e) => e.stopPropagation()}>
+                        <button className="collect-tips-close" onClick={() => setShowTips(false)}>✕</button>
+                        <h3 className="collect-tips-title">Tips</h3>
+                        <ul className="collect-tips-list">
+                            { tips.map((tip) => (
+                                <li key={tip.heading} className="collect-tips-item">
+                                    <span className="collect-tips-heading">{tip.heading}</span>
+                                    <span className="collect-tips-body">{tip.body}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
 
             <TagInput tags={tags} onTagsChange={setTags} suggestions={tagSuggestions} />
 
@@ -153,9 +178,12 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
                     <Camera size={16} aria-hidden="true" /> Photo + Save
                 </button>
                 <div className="collect-actions-separator" />
-                <button className="collect-btn collect-btn--clear" onClick={resetForm}>
-                    Clear
-                </button>
+                <div className="collect-actions-bottom">
+                    <button className="collect-btn collect-btn--clear" onClick={resetForm}>
+                        Clear
+                    </button>
+                    <button className="collect-tips-btn" onClick={() => setShowTips(true)} aria-label="Show tips"><HelpCircle size={18} aria-hidden="true" /></button>
+                </div>
             </div>
         </div>
     );

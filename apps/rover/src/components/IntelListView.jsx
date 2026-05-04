@@ -21,8 +21,9 @@ export default function IntelListView({ intelPoints, position, cryptoKey, onKeep
 
     const applyFilter = (point) => {
         if ((point.tags ?? []).includes(secretTag)) return false;
-        if (!filterText) return true;
-        const needle = filterText.toLowerCase();
+        const trimmed = filterText.trim();
+        if (!trimmed) return true;
+        const needle = trimmed.toLowerCase();
         const haystack = `${point.description ?? ""} ${(point.tags ?? []).join(" ")}`.toLowerCase();
         return haystack.includes(needle);
     };
@@ -69,12 +70,17 @@ export default function IntelListView({ intelPoints, position, cryptoKey, onKeep
     return (
         <div className="intel-list-view">
             <div className="intel-list-header">
-                <input
-                    className="intel-list-search"
-                    type="search"
-                    placeholder="Search intel…"
-                    value={filterText}
-                    onChange={(e) => setFilterText(e.target.value)} />
+                <div className="intel-list-search-wrap">
+                    <input
+                        className="intel-list-search"
+                        type="search"
+                        placeholder="Search intel…"
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)} />
+                    { filterText.trim().length > 0 && (
+                        <button className="intel-list-search-clear" onClick={() => setFilterText("")} aria-label="Clear search">✕</button>
+                    )}
+                </div>
             </div>
 
             <div className="intel-list-content">

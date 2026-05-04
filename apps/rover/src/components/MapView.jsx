@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import "./MapView.css";
 
-import { Map as MLMap, Popup as MLPopup } from "maplibre-gl";
+import { Map as MLMap, Marker as MLMarker, Popup as MLPopup } from "maplibre-gl";
 
 import markerConfirmedUrl from "../assets/markers/intel-confirmed.svg";
 import markerNewUrl from "../assets/markers/intel-new.svg";
@@ -12,7 +12,7 @@ import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 import { calculateSimpleCoord } from "../utils/geo";
 import ReviewDialog from "./ReviewDialog.jsx";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget }) {
     
     // Consts
     
@@ -28,6 +28,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const intelActionsPopupOffset = 10;
     const debounceEndMills = 300;
     const zoomInLevel = 16;
+    const flySpeed = 1.8;
     const markerImageIDs = {
         confirmed: "marker-confirmed",
         new: "marker-new",
@@ -145,6 +146,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const boundsDebounceRef = useRef(null);
     const onAddPlannedIntelRef = useRef(onAddPlannedIntel);
     const editPlannedIntelRef = useRef(onEditPlannedIntel);
+    const navTargetMarkerRef = useRef(null);
     const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
 
     // Effects
@@ -245,8 +247,22 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             console.warn("flyToLocationSignal effect: map not ready");
             return;
         }
-        map.flyTo({ center: [flyToLocationSignal.lon, flyToLocationSignal.lat], zoom: zoomInLevel });
+        map.flyTo({ center: [flyToLocationSignal.lon, flyToLocationSignal.lat], zoom: zoomInLevel, speed: flySpeed });
     }, [flyToLocationSignal]);
+
+    useEffect(() => {
+        if (navTargetMarkerRef.current) {
+            navTargetMarkerRef.current.remove();
+            navTargetMarkerRef.current = null;
+        }
+        const map = roverMapRef.current;
+        if (!navTarget?.latitude || !navTarget?.longitude || !map) return;
+        const el = document.createElement('div');
+        el.className = 'nav-target-ring';
+        navTargetMarkerRef.current = new MLMarker({ element: el, anchor: 'center' })
+            .setLngLat([navTarget.longitude, navTarget.latitude])
+            .addTo(map);
+    }, [navTarget]);
 
     useEffect(() => {
         const map = roverMapRef.current;
@@ -309,6 +325,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         removeMapClickEvent();
         removeMarkerHoverCursor();
         removeContextMenuEvent();
+        navTargetMarkerRef.current?.remove();
+        navTargetMarkerRef.current = null;
         roverMapRef.current?.remove();
         roverMapRef.current = null;
     };
@@ -682,6 +700,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                 coords.latitude,
             ],
             zoom: zoomInLevel,
+            speed: flySpeed,
         });
     };
 
@@ -753,7 +772,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                     onDelete={(point) => deleteConfirmedIntelRef.current?.(point)}
                     onEdit={(point) => editPlannedIntelRef.current?.(point)}
                     onNavigateTo={(point) => navigateToRef.current?.(point)}
-                    onViewOnMap={(point) => { onViewOnMap?.(); navigateToRef.current?.(point); }}
+                    onViewOnMap={(point) => onViewOnMap?.(point)}
                     onError={onError} />
             )}
         </>
