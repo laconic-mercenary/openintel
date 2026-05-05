@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Camera, CircleCheck, Notebook } from "lucide-react";
+import { AlertTriangle, Camera, CircleCheck, HelpCircle, Navigation, Notebook } from "lucide-react";
 import { calculateDistanceKm } from "../utils/geo";
 import ReviewDialog from "./ReviewDialog.jsx";
 import "./IntelListView.css";
@@ -10,12 +10,14 @@ const maxListEntries = 100;
 const secretTag = "secret";
 const distanceThresholdKm = 0.01;
 
-export default function IntelListView({ intelPoints, position, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, onError }) {
+export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, onError }) {
 
     // State
 
     const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
     const [filterText, setFilterText] = useState("");
+    const [useCurrentPosition, setUseCurrentPosition] = useState(() => localStorage.getItem('useCurrentPosition') !== 'false');
+    const [showPositionTooltip, setShowPositionTooltip] = useState(false);
 
     // Methods
 
@@ -29,7 +31,9 @@ export default function IntelListView({ intelPoints, position, cryptoKey, onKeep
     };
 
     const sortedFiltered = useMemo(() => {
-        const coords = position?.coords ?? null;
+        const coords = useCurrentPosition
+            ? (position?.coords ?? null)
+            : (mapCenter ?? position?.coords ?? null);
         const items = intelPoints.filter(applyFilter);
         items.sort((a, b) => {
             const aUnconfirmed = a.confirmed ? 1 : 0;
@@ -46,8 +50,9 @@ export default function IntelListView({ intelPoints, position, cryptoKey, onKeep
     }, [intelPoints, position, filterText]);
 
     const formatDistance = (point) => {
-        if (!position?.coords) return null;
-        const km = calculateDistanceKm(position.coords.latitude, position.coords.longitude, point.latitude, point.longitude);
+        const coords = useCurrentPosition ? position?.coords : (mapCenter ?? position?.coords);
+        if (!coords) return null;
+        const km = calculateDistanceKm(coords.latitude, coords.longitude, point.latitude, point.longitude);
         return km < 0.1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
     };
 
@@ -81,6 +86,27 @@ export default function IntelListView({ intelPoints, position, cryptoKey, onKeep
                         <button className="intel-list-search-clear" onClick={() => setFilterText("")} aria-label="Clear search">✕</button>
                     )}
                 </div>
+                <div className="intel-list-toggle-row">
+                    <span className="intel-list-toggle-label">
+                        Position source
+                        <button className="intel-list-tooltip-btn" onClick={() => setShowPositionTooltip((p) => !p)} aria-label="About position source">
+                            <HelpCircle size={14} aria-hidden="true" />
+                        </button>
+                    </span>
+                    <button
+                        className={`intel-list-toggle-btn${useCurrentPosition ? " is-on" : ""}`}
+                        onClick={() => setUseCurrentPosition((prev) => { const next = !prev; localStorage.setItem('useCurrentPosition', String(next)); return next; })}
+                        aria-label="Toggle position source">
+                        <Navigation size={13} aria-hidden="true" />
+                        <span>{useCurrentPosition ? "Current Position" : "Map Center"}</span>
+                    </button>
+                </div>
+                { showPositionTooltip && (
+                    <div className="intel-list-tooltip">
+                        <p><strong>Current Position</strong> — sorts and distances based on your GPS location.</p>
+                        <p><strong>Map Center</strong> — sorts and distances based on where you last panned the map.</p>
+                    </div>
+                )}
             </div>
 
             <div className="intel-list-content">

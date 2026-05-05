@@ -18,12 +18,12 @@ const tips = [
     { heading: "Secret tag", body: "Intel tagged Secret is hidden from the map and the Intel list, keeping it out of the normal view." },
 ];
 
-export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestions = [], saveToCloudDefault = true, clearSignal = 0 }) {
+export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestions = [], initialTags = [], saveToCloudDefault = true, clearSignal = 0 }) {
 
     // State
 
     const [description, setDescription] = useState("");
-    const [tags, setTags] = useState([]);
+    const [tags, setTags] = useState(initialTags);
     const [saveToCloud, setSaveToCloud] = useState(saveToCloudDefault);
     const [secret, setSecret] = useState(false);
     const [capturedImage, setCapturedImage] = useState(null);

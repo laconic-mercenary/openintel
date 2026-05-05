@@ -43,6 +43,9 @@ export default function Rover() {
     const [activeTab, setActiveTab] = useState("map");
     const [collectModalOpen, setCollectModalOpen] = useState(false);
     const [saveToCloudDefault, setSaveToCloudDefault] = useState(() => localStorage.getItem('saveToCloudDefault') !== 'false');
+    const [recentTags, setRecentTags] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('recentTags') ?? '[]'); } catch { return []; }
+    });
     const [geolocationIsEnabled, setGeolocationIsEnabled] = useState(true);
     const [position, setPosition] = useState(null);
     const [intelPoints, setIntelPoints] = useState([]);
@@ -64,6 +67,8 @@ export default function Rover() {
     const [navTarget, setNavTarget] = useState(null);
     const [saveAllState, setSaveAllState] = useState(null);
     const [collectClearSignal, setCollectClearSignal] = useState(0);
+    const [mapCenter, setMapCenter] = useState(null);
+    const [useCurrentPosition, setUseCurrentPosition] = useState(true);
 
     // Derived
 
@@ -206,11 +211,17 @@ export default function Rover() {
         setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error, 'geolocation');
     };
 
+    const saveRecentTags = (tags) => {
+        localStorage.setItem('recentTags', JSON.stringify(tags));
+        setRecentTags(tags);
+    };
+
     const onIntelReady = (description, b64Image, tags, saveToCloud) => {
         if (!geolocationIsEnabled) {
             console.warn("geolocation is disabled - will not store intel");
             return;
         }
+        saveRecentTags(tags);
         const latestPosition = positionRef.current;
         if (latestPosition) {
             const candidate = addIntelPoint(description, b64Image, latestPosition.coords, tags);
@@ -367,6 +378,7 @@ export default function Rover() {
     };
 
     const onBoundsChange = async (minLat, minLon, maxLat, maxLon, zoom) => {
+        setMapCenter({ latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2 });
         const key = cryptoKeyRef.current;
         if (!key) return;
         if (zoom < minIntelQueryZoom) return;
@@ -631,6 +643,7 @@ export default function Rover() {
                         <IntelListView
                             intelPoints={intelPoints}
                             position={position}
+                            mapCenter={mapCenter}
                             cryptoKey={cryptoKey}
                             onKeepIntel={onKeepIntel}
                             onDiscardIntel={onDiscardIntel}
@@ -646,6 +659,7 @@ export default function Rover() {
                             mode="page"
                             onIntelReady={onIntelReady}
                             tagSuggestions={allTags}
+                            initialTags={recentTags}
                             saveToCloudDefault={saveToCloudDefault}
                             clearSignal={collectClearSignal} />
                     )}
@@ -713,6 +727,7 @@ export default function Rover() {
                     onIntelReady={onIntelReady}
                     onClose={() => setCollectModalOpen(false)}
                     tagSuggestions={allTags}
+                    initialTags={recentTags}
                     saveToCloudDefault={saveToCloudDefault}
                     clearSignal={collectClearSignal} />
             )}
