@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2 } from "lucide-react";
+import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
 import PlannedDialog from "./PlannedDialog.jsx";
-import ProcessingModal from "./ProcessingModal.jsx";
 import ExportIntelDialog from "./ExportIntelDialog.jsx";
 import ImportIntelDialog from "./ImportIntelDialog.jsx";
 import LocateArrow from "./LocateArrow.jsx";
@@ -60,6 +59,7 @@ export default function Rover() {
     const [flyToLocationSignal, setFlyToLocationSignal] = useState(null);
     const [intelFilter] = useState({ tags: [], text: "" });
     const [cloudSaveMessage, setCloudSaveMessage] = useState(null);
+    const [cloudSaveSuccess, setCloudSaveSuccess] = useState(null);
     const [exportIntelPoint, setExportIntelPoint] = useState(null);
     const [importIsOpen, setImportIsOpen] = useState(false);
     const [locateIntelPoint, setLocateIntelPoint] = useState(null);
@@ -68,6 +68,7 @@ export default function Rover() {
     const [saveAllState, setSaveAllState] = useState(null);
     const [collectClearSignal, setCollectClearSignal] = useState(0);
     const [mapCenter, setMapCenter] = useState(null);
+    const [placingNote, setPlacingNote] = useState(false);
     const [useCurrentPosition, setUseCurrentPosition] = useState(true);
 
     // Derived
@@ -206,6 +207,8 @@ export default function Rover() {
         setErrorDetailsIsOpen(false);
     };
 
+    const showSuccess = (message) => setCloudSaveSuccess(message);
+
     const onPositionError = (error) => {
         console.error(error);
         setError("Error getting geolocation — check that it is enabled or wait a moment (high precision locations may take time).", error, 'geolocation');
@@ -308,6 +311,12 @@ export default function Rover() {
                 timestamp: intelPoint.timestamp,
             }, silent ? undefined : (attempt) => setCloudSaveMessage(attempt === 0 ? "Saving Intel..." : "Trying again..."));
 
+            const confirmedPoint = { key: rowKey, geohash };
+
+            if (silent && presignedPutUrl && encryptedImageBuffer) {
+                await uploadIntelImage(presignedPutUrl, encryptedImageBuffer);
+            }
+
             setIntelPoints((previous) => previous.map((point) => {
                 if (point.key !== intelPoint.key) return point;
                 return {
@@ -316,16 +325,16 @@ export default function Rover() {
                     geohash,
                     confirmed: true,
                     b64image: null,
-                    hasImage: false,
+                    hasImage: silent ? !!encryptedImageBuffer : false,
                 };
             }));
             setAppError((prev) => prev?.type === 'save' ? null : prev);
 
-            if (presignedPutUrl && encryptedImageBuffer) {
-                if (!silent) setCloudSaveMessage("Uploading Image...");
-                const confirmedPoint = { key: rowKey, geohash };
-                await uploadConfirmedIntelImage(confirmedPoint, encryptedImageBuffer, presignedPutUrl, silent);
+            if (!silent && presignedPutUrl && encryptedImageBuffer) {
+                setCloudSaveMessage("Uploading Image...");
+                await uploadConfirmedIntelImage(confirmedPoint, encryptedImageBuffer, presignedPutUrl, false);
             }
+            if (!silent) showSuccess("Intel saved.");
         } catch (error) {
             if (!silent) {
                 console.error('failed to store intel:', error);
@@ -368,6 +377,8 @@ export default function Rover() {
             setIntelPoints((previous) => previous.filter((point) => point.key !== intelPoint.key));
             if (alreadyDeleted) {
                 setError("Intel was already deleted elsewhere — removed from map.", null);
+            } else {
+                showSuccess("Intel deleted.");
             }
         } catch (error) {
             console.error('failed to delete intel:', error);
@@ -543,6 +554,7 @@ export default function Rover() {
                 }));
             }
             setPlannedDialogState(null);
+            showSuccess(state.mode === "add" ? "Note saved." : "Note updated.");
         } catch (error) {
             console.error("failed to save planned intel:", error);
             setError("Failed to save note — please try again.", error);
@@ -561,6 +573,8 @@ export default function Rover() {
             setPlannedDialogState(null);
             if (alreadyDeleted) {
                 setError("Note was already deleted elsewhere — removed from map.", null);
+            } else {
+                showSuccess("Note deleted.");
             }
         } catch (error) {
             console.error("failed to delete planned intel:", error);
@@ -626,6 +640,12 @@ export default function Rover() {
                         )}
                         <button className="rover-error-banner-dismiss" onClick={dismissError}>✕</button>
                     </span>
+                </div>
+            )}
+            { cloudSaveSuccess && (
+                <div className="rover-success-banner">
+                    <span>✓ {cloudSaveSuccess}</span>
+                    <button className="rover-success-banner-dismiss" onClick={() => setCloudSaveSuccess(null)}>✕</button>
                 </div>
             )}
             { errorDetailsIsOpen && (
@@ -696,7 +716,9 @@ export default function Rover() {
                     mapCenterRef={mapCenterRef}
                     isSatellite={isSatellite}
                     geolocationIsEnabled={geolocationIsEnabled}
-                    navTarget={navTarget} />
+                    navTarget={navTarget}
+                    placingNote={placingNote}
+                    onNotePlaced={() => setPlacingNote(false)} />
             { activeTab === 'map' && navTarget && (
                 <button className="rover-nav-cancel-btn" onClick={() => setNavTarget(null)} aria-label="Cancel navigation">✕</button>
             )}
@@ -713,6 +735,12 @@ export default function Rover() {
                     <button className="rover-get-intel-btn" onClick={() => setCollectModalOpen(true)} aria-label="Collect Intel">
                         <Feather size={24} aria-hidden="true" />
                     </button>
+                    <button
+                        className={`rover-add-note-btn${placingNote ? " is-active" : ""}`}
+                        onClick={() => setPlacingNote((prev) => !prev)}
+                        aria-label="Add note to map">
+                        <NotebookPen size={24} aria-hidden="true" />
+                    </button>
                     <button className="rover-satellite-btn" onClick={() => setIsSatellite((prev) => !prev)} aria-label="Toggle satellite view">
                         {isSatellite ? <Map size={24} aria-hidden="true" /> : <Layers size={24} aria-hidden="true" />}
                     </button>
@@ -720,6 +748,9 @@ export default function Rover() {
                         <Navigation2 size={24} aria-hidden="true" />
                     </button>
                 </>
+            )}
+            { activeTab === 'map' && placingNote && (
+                <div className="rover-placing-note-banner">Tap map to place note</div>
             )}
             { collectModalOpen && (
                 <CollectForm
@@ -732,7 +763,14 @@ export default function Rover() {
                     clearSignal={collectClearSignal} />
             )}
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-            { cloudSaveMessage && <ProcessingModal message={cloudSaveMessage} subMessage={cloudSaveMessage === "Saving Intel..." || cloudSaveMessage === "Trying again..." ? "Large images may take longer." : null} /> }
+            { cloudSaveMessage && (
+                <div className="rover-save-all-group">
+                    <div className="rover-save-all-btn" style={{ cursor: "default" }}>
+                        <Loader2 size={16} className="rover-save-all-spinning" aria-hidden="true" />
+                        <span>{cloudSaveMessage}</span>
+                    </div>
+                </div>
+            )}
             { (() => {
                 const pendingCount = intelPoints.filter((p) => !p.confirmed && !p.planned).length;
                 if (cloudSaveMessage) return null;

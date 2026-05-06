@@ -12,7 +12,7 @@ import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 import { calculateSimpleCoord } from "../utils/geo";
 import ReviewDialog from "./ReviewDialog.jsx";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget, placingNote, onNotePlaced }) {
     
     // Consts
     
@@ -147,6 +147,7 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const onAddPlannedIntelRef = useRef(onAddPlannedIntel);
     const editPlannedIntelRef = useRef(onEditPlannedIntel);
     const navTargetMarkerRef = useRef(null);
+    const placingNoteRef = useRef(placingNote);
     const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
 
     // Effects
@@ -263,6 +264,10 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             .setLngLat([navTarget.longitude, navTarget.latitude])
             .addTo(map);
     }, [navTarget]);
+
+    useEffect(() => {
+        placingNoteRef.current = placingNote;
+    }, [placingNote]);
 
     useEffect(() => {
         const map = roverMapRef.current;
@@ -415,12 +420,16 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
         map.off("click", onMapClick);
     };
 
-    const onMapClick = () => {
+    const onMapClick = (e) => {
         if (markerClickConsumedRef.current) {
             markerClickConsumedRef.current = false;
             return;
         }
         removeIntelActionsPopup();
+        if (placingNoteRef.current && e?.lngLat) {
+            onAddPlannedIntelRef.current?.(e.lngLat.lat, e.lngLat.lng);
+            onNotePlaced?.();
+        }
     };
 
     const onMarkerClick = (event) => {

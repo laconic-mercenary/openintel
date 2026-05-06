@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 16px 16px calc(4rem + 16px);
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .review-dialog {
@@ -13,7 +13,7 @@
   width: min(430px, 100%);
   border: 1px solid rgba(200, 170, 100, 0.2);
   border-radius: 12px;
-  padding: 16px;
+  padding: 2.5rem 16px 16px;
   background: #111;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.5);
   display: grid;

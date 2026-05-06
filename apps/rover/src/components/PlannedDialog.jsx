@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TagInput from "./TagInput.jsx";
+import "./Intel.css";
 import "./PlannedDialog.css";
 
 export default function PlannedDialog({ mode, intelPoint, tagSuggestions = [], initialTags = [], onSave, onCancel, onDelete }) {

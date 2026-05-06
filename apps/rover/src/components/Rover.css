@@ -40,6 +40,33 @@
 }
 
 
+.rover-success-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 420;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #e6f4e6;
+  border-bottom: 1px solid #a3c8a3;
+  color: #1e5c1e;
+  font-size: 0.875rem;
+}
+
+.rover-success-banner-dismiss {
+  background: none;
+  border: none;
+  color: #1e5c1e;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 .rover-error-banner-actions {
   display: flex;
   align-items: center;
@@ -125,6 +152,7 @@
 
 .rover-locate-btn,
 .rover-satellite-btn,
+.rover-add-note-btn,
 .rover-get-intel-btn {
     position: fixed;
     right: 1rem;
@@ -152,9 +180,37 @@
     bottom: calc(4.5rem + 3.5rem + 0.6rem);
 }
 
-.rover-get-intel-btn {
+.rover-add-note-btn {
     bottom: calc(4.5rem + (3.5rem + 0.6rem) * 2);
+    color: #e07070;
+}
+
+.rover-add-note-btn.is-active {
+    background: rgba(109, 145, 100, 0.5);
+    color: #8cbf84;
+    border: 1px solid rgba(109, 145, 100, 0.6);
+}
+
+.rover-get-intel-btn {
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 3);
     color: #c29a57;
+}
+
+.rover-placing-note-banner {
+    position: fixed;
+    bottom: 4.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    padding: 0.5rem 1.2rem;
+    border-radius: 2rem;
+    background: rgba(109, 145, 100, 0.85);
+    backdrop-filter: blur(6px);
+    color: #ffffff;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
 }
 
 .rover-save-all-group,
@@ -272,6 +328,7 @@
 
 .rover-locate-btn:hover,
 .rover-satellite-btn:hover,
+.rover-add-note-btn:hover,
 .rover-get-intel-btn:hover {
     background: rgba(30, 30, 30, 0.85);
 }
