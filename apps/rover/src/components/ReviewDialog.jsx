@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
 import { getIntelImageUrl } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 import CommentsDialog from "./CommentsDialog.jsx";
@@ -6,15 +7,23 @@ import "./ReviewDialog.css";
 
 export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, onDiscard, onExport, onDelete, onEdit, onViewOnMap, onNavigateTo, onError }) {
 
+    // Consts
+
+    const exportImageMimeType = "image/jpeg";
+    const exportJsonMimeType = "application/json";
+    const exportStatePreparing = "preparing";
+
     // State
 
     const [imageUrl, setImageUrl] = useState(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
     const [deleteConfirming, setDeleteConfirming] = useState(false);
+    const [exportState, setExportState] = useState(null);
 
     // References
 
     const blobUrlRef = useRef(null);
+    const exportBlobUrlRef = useRef(null);
 
     // Effects
 
@@ -25,6 +34,15 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
             blobUrlRef.current = null;
+        }
+        setExportState(null);
+        if (exportBlobUrlRef.current) {
+            URL.revokeObjectURL(exportBlobUrlRef.current);
+            exportBlobUrlRef.current = null;
+        }
+        if (intelPoint.b64image) {
+            setImageUrl(intelPoint.b64image);
+            return;
         }
         if (!intelPoint?.hasImage) return;
         let cancelled = false;
@@ -54,10 +72,12 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
                 URL.revokeObjectURL(blobUrlRef.current);
                 blobUrlRef.current = null;
             }
+            if (exportBlobUrlRef.current) {
+                URL.revokeObjectURL(exportBlobUrlRef.current);
+                exportBlobUrlRef.current = null;
+            }
         };
     }, []);
-
-    // Methods
 
     // Methods
 
@@ -65,6 +85,66 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
         if (!timestamp) return "Unknown";
         const d = new Date(timestamp);
         return isNaN(d.getTime()) ? "Unknown" : d.toLocaleString();
+    };
+
+    const buildExportData = (imageBase64) => ({
+        type: intelPoint.planned ? 'planned' : intelPoint.confirmed ? 'confirmed' : 'unconfirmed',
+        description: intelPoint.description ?? '',
+        tags: intelPoint.tags ?? [],
+        latitude: intelPoint.latitude,
+        longitude: intelPoint.longitude,
+        accuracy: intelPoint.accuracy,
+        timestamp: intelPoint.timestamp,
+        image: imageBase64 ?? null,
+    });
+
+    const triggerDownload = (imageBase64) => {
+        const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(buildExportData(imageBase64), null, 2)], { type: exportJsonMimeType }));
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `intel-${intelPoint.timestamp ?? Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+    };
+
+    const fetchAndPrepare = async () => {
+        try {
+            const presignedUrl = await getIntelImageUrl(intelPoint);
+            const encryptedBuffer = await fetch(presignedUrl).then((r) => r.arrayBuffer());
+            const plaintextBuffer = await decryptBytes(cryptoKey, encryptedBuffer);
+            const bytes = new Uint8Array(plaintextBuffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            const imageBase64 = `data:${exportImageMimeType};base64,` + btoa(binary);
+            const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(buildExportData(imageBase64), null, 2)], { type: exportJsonMimeType }));
+            exportBlobUrlRef.current = blobUrl;
+            setExportState({ blobUrl, filename: `intel-${intelPoint.timestamp ?? Date.now()}.json` });
+        } catch (exportErr) {
+            console.error('export preparation failed:', exportErr);
+            setExportState(null);
+            onError?.('Export failed — please try again.');
+        }
+    };
+
+    const onExportClick = () => {
+        const needsR2Fetch = !!intelPoint.hasImage && !intelPoint.b64image;
+        if (needsR2Fetch) {
+            setExportState(exportStatePreparing);
+            fetchAndPrepare();
+        } else {
+            triggerDownload(intelPoint.b64image ?? null);
+        }
+    };
+
+    const onDownloadReady = () => {
+        if (!exportState?.blobUrl) return;
+        const a = document.createElement('a');
+        a.href = exportState.blobUrl;
+        a.download = exportState.filename;
+        a.click();
+        URL.revokeObjectURL(exportState.blobUrl);
+        exportBlobUrlRef.current = null;
+        setExportState(null);
     };
 
     const onDeleteClick = () => {
@@ -132,7 +212,6 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
                             <>
                                 <button className="review-btn review-btn-primary" onClick={() => { onKeep?.(intelPoint); onClose?.(); }}>Save to Cloud</button>
                                 <button className="review-btn review-btn-danger" onClick={() => { onDiscard?.(intelPoint); onClose?.(); }}>Discard</button>
-                                <button className="review-btn review-btn-secondary" onClick={() => { onExport?.(intelPoint); onClose?.(); }}>Export</button>
                             </>
                         )}
                         { isPlanned && (
@@ -146,6 +225,19 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
                         )}
                         { onNavigateTo && isConfirmed && (
                             <button className="review-btn review-btn-secondary" onClick={() => { onNavigateTo(intelPoint); onClose?.(); }}>Navigate</button>
+                        )}
+                        { !isPlanned && (
+                            exportState === exportStatePreparing ? (
+                                <button className="review-btn review-btn-secondary" disabled>
+                                    <Loader2 size={13} className="review-export-spinning" aria-hidden="true" /> Preparing…
+                                </button>
+                            ) : exportState?.blobUrl ? (
+                                <button className="review-btn review-btn-primary" onClick={onDownloadReady}>
+                                    <Download size={13} aria-hidden="true" /> Download
+                                </button>
+                            ) : (
+                                <button className="review-btn review-btn-secondary" onClick={onExportClick}>Export (Unencrypted)</button>
+                            )
                         )}
                         <button className="review-btn review-btn-secondary" onClick={() => { onViewOnMap?.(intelPoint); onClose?.(); }}>View on Map</button>
                     </div>

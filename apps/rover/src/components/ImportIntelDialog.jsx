@@ -1,14 +1,14 @@
 import { useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { decryptText } from "../utils/crypto";
+import { intelTypeConfirmed, intelTypeUnconfirmed, validateDescription, validateImage, validateTags, validateCoords } from "../utils/validation";
 import "./ImportIntelDialog.css";
 
 export default function ImportIntelDialog({ onImport, cryptoKey, onCancel }) {
 
     // Consts
 
-    const maxImageBytes = 10 * 1024 * 1024;
-    const supportedVersion = 1;
+    const encryptedFormatVersion = 1;
 
     // State
 
@@ -23,24 +23,27 @@ export default function ImportIntelDialog({ onImport, cryptoKey, onCancel }) {
 
     // Methods
 
-    const validateOuter = (parsed) => {
-        if (!parsed || typeof parsed !== "object") return "Invalid file format.";
-        if (parsed.version !== supportedVersion) return `Unsupported file version: ${parsed.version}.`;
-        if (typeof parsed.encrypted !== "string") return "Missing encrypted payload.";
-        return null;
+    const validateIntelFields = (intel) => {
+        if (!intel || typeof intel !== "object") return "Invalid intel data.";
+        if (typeof intel.timestamp !== "number") return "Missing or invalid timestamp.";
+        return validateDescription(intel.description ?? "")
+            ?? validateTags(intel.tags ?? [])
+            ?? validateImage(intel.image ?? null)
+            ?? validateCoords(intel.latitude, intel.longitude);
     };
 
-    const validateInner = (intel) => {
-        if (!intel || typeof intel !== "object") return "Invalid intel data.";
-        if (typeof intel.description !== "string") return "Missing or invalid description.";
-        if (!Array.isArray(intel.tags)) return "Missing or invalid tags.";
-        if (typeof intel.timestamp !== "number") return "Missing or invalid timestamp.";
-        if (intel.image !== null && typeof intel.image !== "string") return "Invalid image data.";
-        if (intel.image) {
-            const bytes = (intel.image.length * 3) / 4;
-            if (bytes > maxImageBytes) return "Image exceeds maximum size of 10 MB.";
-        }
-        return null;
+    const extractIntelPayload = (intel) => {
+        const hasLocation = intel.latitude != null && intel.longitude != null;
+        return {
+            description: intel.description ?? "",
+            tags: intel.tags ?? [],
+            timestamp: intel.timestamp,
+            b64image: intel.image ?? null,
+            latitude: hasLocation ? intel.latitude : null,
+            longitude: hasLocation ? intel.longitude : null,
+            accuracy: hasLocation ? (intel.accuracy ?? null) : null,
+            manualLocation: false,
+        };
     };
 
     const onFileChange = async (e) => {
@@ -52,41 +55,39 @@ export default function ImportIntelDialog({ onImport, cryptoKey, onCancel }) {
         setLoading(true);
         setError(null);
         try {
-            const text = await file.text();
-            const parsed = JSON.parse(text);
-            const outerError = validateOuter(parsed);
-            if (outerError) {
-                setError(outerError);
+            const parsed = JSON.parse(await file.text());
+            if (!parsed || typeof parsed !== "object") {
+                setError("Invalid file format.");
                 return;
             }
             let intel;
-            try {
-                const decrypted = await decryptText(cryptoKey, parsed.encrypted);
-                intel = JSON.parse(decrypted);
-            } catch (decryptErr) {
-                console.error("failed to decrypt intel export:", decryptErr);
-                setError("Could not decrypt file — it was exported with a different encryption password.");
+            if (typeof parsed.encrypted === "string") {
+                if (parsed.version !== encryptedFormatVersion) {
+                    setError(`Unsupported file version: ${parsed.version}.`);
+                    return;
+                }
+                try {
+                    intel = JSON.parse(await decryptText(cryptoKey, parsed.encrypted));
+                } catch (decryptErr) {
+                    console.error("failed to decrypt intel export:", decryptErr);
+                    setError("Could not decrypt file — it was exported with a different encryption password.");
+                    return;
+                }
+            } else if (parsed.type === intelTypeConfirmed || parsed.type === intelTypeUnconfirmed) {
+                intel = parsed;
+            } else {
+                setError("Unrecognized file format.");
                 return;
             }
-            const innerError = validateInner(intel);
-            if (innerError) {
-                setError(innerError);
+            const validationError = validateIntelFields(intel);
+            if (validationError) {
+                setError(validationError);
                 return;
             }
-            const hasLocation = intel.latitude !== null && intel.latitude !== undefined
-                && intel.longitude !== null && intel.longitude !== undefined;
-            onImportRef.current?.({
-                description: intel.description,
-                tags: intel.tags,
-                timestamp: intel.timestamp,
-                b64image: intel.image ?? null,
-                latitude: hasLocation ? intel.latitude : null,
-                longitude: hasLocation ? intel.longitude : null,
-                accuracy: hasLocation ? intel.accuracy : null,
-                manualLocation: false,
-            }, hasLocation);
+            const payload = extractIntelPayload(intel);
+            onImportRef.current?.(payload, payload.latitude != null);
         } catch (parseErr) {
-            console.error(parseErr);
+            console.error("failed to parse intel import:", parseErr);
             setError("Could not read file — make sure it is a valid Intel JSON file.");
         } finally {
             setLoading(false);

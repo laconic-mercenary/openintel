@@ -1,5 +1,6 @@
 import { useState } from "react";
 import TagInput from "./TagInput.jsx";
+import { descriptionMaxLen } from "../utils/validation";
 import "./Intel.css";
 import "./PlannedDialog.css";
 
@@ -7,7 +8,7 @@ export default function PlannedDialog({ mode, intelPoint, tagSuggestions = [], i
 
     // Consts
 
-    const descriptionMaxLength = 300;
+    const descriptionMaxLength = descriptionMaxLen;
 
     // State
 

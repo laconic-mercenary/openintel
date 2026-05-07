@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Cloud, CloudOff, EyeOff, HelpCircle, Lock, Save } from "lucide-react";
+import { descriptionMaxLen as descriptionMaxLenConst } from "../utils/validation";
 import TagInput from "./TagInput.jsx";
 import CameraCapture from "./CameraCapture.jsx";
 import "./CollectForm.css";
@@ -7,7 +8,7 @@ import "./CollectForm.css";
 // Consts
 
 const secretTag = "secret";
-const descriptionMaxLen = 300;
+const descriptionMaxLen = descriptionMaxLenConst;
 const successDismissMs = 3000;
 
 const tips = [
