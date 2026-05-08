@@ -1,41 +1,46 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Camera, CircleCheck, HelpCircle, Navigation, Notebook } from "lucide-react";
+import { AlertTriangle, Camera, CircleCheck, HelpCircle, Map, Navigation, Notebook, Pin } from "lucide-react";
 import { calculateDistanceKm } from "../utils/geo";
+import { chipsToFilter, applyFilter } from "../utils/filters";
+import ChipInput from "./ChipInput.jsx";
 import ReviewDialog from "./ReviewDialog.jsx";
 import "./IntelListView.css";
 
 // Consts
 
 const maxListEntries = 100;
-const secretTag = "secret";
 const distanceThresholdKm = 0.01;
 
-export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, onError }) {
+const searchTips = [
+    { heading: "Basic search", body: "Type any word to search descriptions and tags." },
+    { heading: "AND search", body: "Use 'and' between terms — shows intel matching all of them." },
+    { heading: "OR search", body: "Use 'or' between terms — shows intel matching any of them." },
+];
+
+export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, filterChips, onFilterChipsChange, showFiltersOnMap, onShowFiltersOnMapChange, pinnedKeys, onPinToggle, onError }) {
 
     // State
 
     const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
-    const [filterText, setFilterText] = useState("");
     const [useCurrentPosition, setUseCurrentPosition] = useState(() => localStorage.getItem('useCurrentPosition') !== 'false');
     const [showPositionTooltip, setShowPositionTooltip] = useState(false);
+    const [showSearchTip, setShowSearchTip] = useState(false);
 
     // Methods
 
-    const applyFilter = (point) => {
-        if ((point.tags ?? []).includes(secretTag)) return false;
-        const trimmed = filterText.trim();
-        if (!trimmed) return true;
-        const needle = trimmed.toLowerCase();
-        const haystack = `${point.description ?? ""} ${(point.tags ?? []).join(" ")}`.toLowerCase();
-        return haystack.includes(needle);
-    };
+    const parsedFilter = useMemo(() => chipsToFilter(filterChips), [filterChips]);
+
+    const applyListFilter = (point) => applyFilter(parsedFilter, point);
 
     const sortedFiltered = useMemo(() => {
         const coords = useCurrentPosition
             ? (position?.coords ?? null)
             : (mapCenter ?? position?.coords ?? null);
-        const items = intelPoints.filter(applyFilter);
+        const items = intelPoints.filter(applyListFilter);
         items.sort((a, b) => {
+            const aPinned = pinnedKeys?.has(a.key) ? 0 : 1;
+            const bPinned = pinnedKeys?.has(b.key) ? 0 : 1;
+            if (aPinned !== bPinned) return aPinned - bPinned;
             const aUnconfirmed = a.confirmed ? 1 : 0;
             const bUnconfirmed = b.confirmed ? 1 : 0;
             if (aUnconfirmed !== bUnconfirmed) return aUnconfirmed - bUnconfirmed;
@@ -47,7 +52,7 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
             return (b.timestamp ?? 0) - (a.timestamp ?? 0);
         });
         return items.slice(0, maxListEntries);
-    }, [intelPoints, position, filterText]);
+    }, [intelPoints, position, filterChips, pinnedKeys]);
 
     const formatDistance = (point) => {
         const coords = useCurrentPosition ? position?.coords : (mapCenter ?? position?.coords);
@@ -75,17 +80,22 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
     return (
         <div className="intel-list-view">
             <div className="intel-list-header">
-                <div className="intel-list-search-wrap">
-                    <input
-                        className="intel-list-search"
-                        type="search"
-                        placeholder="Search intel…"
-                        value={filterText}
-                        onChange={(e) => setFilterText(e.target.value)} />
-                    { filterText.trim().length > 0 && (
-                        <button className="intel-list-search-clear" onClick={() => setFilterText("")} aria-label="Clear search">✕</button>
-                    )}
+                <div className="intel-list-search-row">
+                    <ChipInput
+                        chips={filterChips}
+                        onChipsChange={onFilterChipsChange}
+                        placeholder="Search intel…" />
+                    <button className="intel-list-tooltip-btn" onClick={() => setShowSearchTip((p) => !p)} aria-label="Search tips">
+                        <HelpCircle size={16} aria-hidden="true" />
+                    </button>
                 </div>
+                { showSearchTip && (
+                    <div className="intel-list-tooltip">
+                        { searchTips.map((tip) => (
+                            <p key={tip.heading}><strong>{tip.heading}:</strong> {tip.body}</p>
+                        ))}
+                    </div>
+                )}
                 <div className="intel-list-toggle-row">
                     <span className="intel-list-toggle-label">
                         Position source
@@ -107,6 +117,16 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                         <p><strong>Map Center</strong> — sorts and distances based on where you last panned the map.</p>
                     </div>
                 )}
+                <div className="intel-list-toggle-row">
+                    <span className="intel-list-toggle-label">Show results on map</span>
+                    <button
+                        className={`intel-list-toggle-btn${showFiltersOnMap ? " is-on" : ""}`}
+                        onClick={() => onShowFiltersOnMapChange(!showFiltersOnMap)}
+                        aria-label="Toggle show results on map">
+                        <Map size={13} aria-hidden="true" />
+                        <span>{showFiltersOnMap ? "On" : "Off"}</span>
+                    </button>
+                </div>
             </div>
 
             <div className="intel-list-content">
@@ -143,6 +163,9 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                                     </span>
                                 )}
                             </span>
+                            { pinnedKeys?.has(point.key) && (
+                                <span className="intel-list-row-pinned"><Pin size={12} /></span>
+                            )}
                             <span className={`intel-list-row-photo${hasPhoto ? " has-photo" : ""}`}>
                                 <Camera size={15} />
                             </span>
@@ -163,6 +186,8 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                     onEdit={(p) => { onEditPlannedIntel(p); onCloseReview(); }}
                     onNavigateTo={onNavigateTo}
                     onViewOnMap={(p) => { onViewOnMap?.(p); onCloseReview(); }}
+                    isPinned={pinnedKeys?.has(reviewIntelPoint?.key)}
+                    onPinToggle={reviewIntelPoint ? () => onPinToggle?.(reviewIntelPoint.geohash, reviewIntelPoint.key) : undefined}
                     onError={onError} />
             )}
         </div>

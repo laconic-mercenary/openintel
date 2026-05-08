@@ -1,0 +1,87 @@
+.chip-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(200, 170, 100, 0.2);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    box-sizing: border-box;
+    cursor: text;
+    min-height: 2.6rem;
+}
+
+.chip-input:focus-within {
+    border-color: rgba(200, 170, 100, 0.45);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.chip--token {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    color: #93c5fd;
+}
+
+.chip--operator {
+    background: rgba(234, 179, 8, 0.15);
+    border: 1px solid rgba(234, 179, 8, 0.4);
+    color: #fde047;
+    font-style: italic;
+}
+
+.chip--invalid {
+    background: rgba(163, 63, 54, 0.15);
+    border: 1px solid rgba(163, 63, 54, 0.4);
+    color: #e07070;
+}
+
+.chip-text {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chip-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.7rem;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+}
+
+.chip-remove:hover {
+    opacity: 1;
+}
+
+.chip-input-field {
+    flex: 1;
+    min-width: 80px;
+    background: none;
+    border: none;
+    outline: none;
+    color: rgba(232, 213, 176, 0.85);
+    font-size: 1rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+.chip-input-field::placeholder {
+    color: rgba(200, 170, 100, 0.35);
+}

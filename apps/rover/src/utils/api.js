@@ -100,13 +100,12 @@ export const listIntel = async (minLat, minLon, maxLat, maxLon) => {
     return response.json();
 };
 
-export const getIntelImageUrl = async (intelPoint) => {
+export const getIntelDetails = async (intelPoint) => {
     const response = await fetchWithTimeout(`/rover/intel/${intelPoint.geohash}/${intelPoint.key}`);
     if (!response.ok) {
-        throw new Error(`failed to get intel image url: ${response.status}`);
+        throw new Error(`failed to get intel details: ${response.status}`);
     }
-    const { url } = await response.json();
-    return url;
+    return response.json();
 };
 
 export const logout = async () => {

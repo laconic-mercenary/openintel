@@ -15,8 +15,15 @@
     gap: 0.5rem;
 }
 
+.intel-list-search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .intel-list-search-wrap {
     position: relative;
+    flex: 1;
 }
 
 .intel-list-search {
@@ -207,6 +214,13 @@
     font-size: 0.7rem;
     color: rgba(196, 168, 122, 0.45);
     letter-spacing: 0.04em;
+}
+
+.intel-list-row-pinned {
+    flex-shrink: 0;
+    color: #8cbf84;
+    display: flex;
+    align-items: center;
 }
 
 .intel-list-row-photo {

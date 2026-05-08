@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
+import { chipsToFilter, applyFilter } from "../utils/filters";
+import { intelTypePlanned } from "../utils/validation";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
@@ -15,7 +17,7 @@ import CollectForm from "./CollectForm.jsx";
 import OptionsView from "./OptionsView.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl } from "../utils/api";
+import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl, getIntelDetails } from "../utils/api";
 import { calculateBearing, calculateDistanceKm } from "../utils/geo";
 import { loadKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
@@ -30,6 +32,7 @@ export default function Rover() {
     const loginPath = "/login";
     const minIntelQueryZoom = 10;
     const secretTag = "secret";
+    const promiseStatusFulfilled = "fulfilled";
     const geolocationPositionTimeout = 5000;
     const geolocationOptions = {
         enableHighAccuracy: true,
@@ -70,8 +73,15 @@ export default function Rover() {
     const [mapCenter, setMapCenter] = useState(null);
     const [placingNote, setPlacingNote] = useState(false);
     const [useCurrentPosition, setUseCurrentPosition] = useState(true);
+    const [filterChips, setFilterChips] = useState([]);
+    const [showFiltersOnMap, setShowFiltersOnMap] = useState(() => localStorage.getItem('showFiltersOnMap') === 'true');
+    const [pinnedItems, setPinnedItems] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('pinnedItems') ?? '[]'); } catch { return []; }
+    });
 
     // Derived
+
+    const pinnedKeys = useMemo(() => new Set(pinnedItems.map((p) => p.key)), [pinnedItems]);
 
     const allTags = useMemo(() => {
         const coords = position?.coords ?? null;
@@ -102,6 +112,11 @@ export default function Rover() {
 
     useEffect(() => {
         cryptoKeyRef.current = cryptoKey;
+    }, [cryptoKey]);
+
+    useEffect(() => {
+        if (!cryptoKey || pinnedItems.length === 0) return;
+        loadPinnedIntel(cryptoKey, pinnedItems);
     }, [cryptoKey]);
 
     useEffect(() => {
@@ -138,19 +153,53 @@ export default function Rover() {
 
     // Methods
 
+    const loadPinnedIntel = async (key, items) => {
+        const results = await Promise.allSettled(items.map(async (item) => {
+            const { encryptedPayload, hasImage } = await getIntelDetails(item);
+            const plaintext = await decryptText(key, encryptedPayload);
+            const { lat, lon, accuracy, description, timestamp, tags, type } = JSON.parse(plaintext);
+            return {
+                key: item.key,
+                geohash: item.geohash,
+                latitude: lat,
+                longitude: lon,
+                accuracy,
+                description,
+                timestamp,
+                tags: tags ?? [],
+                planned: type === intelTypePlanned,
+                hasImage,
+                confirmed: true,
+                b64image: null,
+                fromServer: true,
+            };
+        }));
+        const loaded = results
+            .filter((r) => r.status === promiseStatusFulfilled)
+            .map((r) => r.value);
+        if (loaded.length === 0) return;
+        setIntelPoints((prev) => {
+            const existingKeys = new Set(prev.map((p) => p.key));
+            return [...prev, ...loaded.filter((p) => !existingKeys.has(p.key))];
+        });
+    };
+
+    const onPinToggle = (geohash, key) => {
+        setPinnedItems((prev) => {
+            const next = prev.some((p) => p.key === key)
+                ? prev.filter((p) => p.key !== key)
+                : [...prev, { geohash, key }];
+            localStorage.setItem('pinnedItems', JSON.stringify(next));
+            return next;
+        });
+    };
+
     const applyIntelFilter = (point) => {
-        const tags = point.tags ?? [];
-        if (intelFilter.tags.length === 0) {
-            if (tags.includes(secretTag)) return false;
-        } else {
-            if (!tags.some((t) => intelFilter.tags.includes(t))) return false;
+        const parsed = chipsToFilter(filterChips);
+        if (showFiltersOnMap && parsed.tokens.length > 0) {
+            return applyFilter(parsed, point);
         }
-        if (intelFilter.text) {
-            const needle = intelFilter.text.toLowerCase();
-            const haystack = `${point.description ?? ""} ${tags.join(" ")}`.toLowerCase();
-            if (!haystack.includes(needle)) return false;
-        }
-        return true;
+        return !(point.tags ?? []).includes(secretTag);
     };
 
     const newIntelCandidate = (description, b64image, coords, tags) => {
@@ -407,7 +456,7 @@ export default function Rover() {
                     description,
                     timestamp,
                     tags: tags ?? [],
-                    planned: type === "planned",
+                    planned: type === intelTypePlanned,
                     hasImage: item.hasImage,
                     confirmed: true,
                     b64image: null,
@@ -416,7 +465,7 @@ export default function Rover() {
             }));
 
             const decrypted = results
-                .filter((r) => r.status === 'fulfilled')
+                .filter((r) => r.status === promiseStatusFulfilled)
                 .map((r) => r.value);
 
             const failedCount = results.filter((r) => r.status === 'rejected').length;
@@ -427,7 +476,7 @@ export default function Rover() {
             setIntelPoints((previous) => {
                 const currentCells = new Set(bboxToGeohash5Cells(minLat, minLon, maxLat, maxLon));
                 const inSession = previous.filter((p) => !p.fromServer);
-                const retained = previous.filter((p) => p.fromServer && currentCells.has(p.geohash));
+                const retained = previous.filter((p) => p.fromServer && (currentCells.has(p.geohash) || pinnedKeys.has(p.key)));
                 const retainedKeys = new Set(retained.map((p) => p.key));
                 const inSessionKeys = new Set(inSession.map((p) => p.key));
                 const incoming = decrypted.filter((p) => !retainedKeys.has(p.key) && !inSessionKeys.has(p.key));
@@ -510,7 +559,7 @@ export default function Rover() {
                 const intelKey = crypto.randomUUID();
                 const timestamp = currentTimestampMillis();
                 const payload = JSON.stringify({
-                    lat, lon, accuracy: 0, description, timestamp, tags: tags ?? [], type: "planned",
+                    lat, lon, accuracy: 0, description, timestamp, tags: tags ?? [], type: intelTypePlanned,
                 });
                 const encryptedPayload = await encryptText(key, payload);
                 const { key: rowKey } = await storeIntel({
@@ -544,7 +593,7 @@ export default function Rover() {
                     description,
                     timestamp: intelPoint.timestamp,
                     tags: tags ?? [],
-                    type: "planned",
+                    type: intelTypePlanned,
                 });
                 const encryptedPayload = await encryptText(key, payload);
                 await updateIntel({ geohash: intelPoint.geohash, key: intelPoint.key, encryptedPayload });
@@ -672,6 +721,12 @@ export default function Rover() {
                             onExportIntel={setExportIntelPoint}
                             onNavigateTo={onNavigateTo}
                             onViewOnMap={onViewOnMap}
+                            filterChips={filterChips}
+                            onFilterChipsChange={setFilterChips}
+                            showFiltersOnMap={showFiltersOnMap}
+                            onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); localStorage.setItem('showFiltersOnMap', String(val)); }}
+                            pinnedKeys={pinnedKeys}
+                            onPinToggle={onPinToggle}
                             onError={(msg) => setError(msg, null)} />
                     )}
                     { activeTab === "collect" && (
@@ -718,7 +773,9 @@ export default function Rover() {
                     geolocationIsEnabled={geolocationIsEnabled}
                     navTarget={navTarget}
                     placingNote={placingNote}
-                    onNotePlaced={() => setPlacingNote(false)} />
+                    onNotePlaced={() => setPlacingNote(false)}
+                    pinnedKeys={pinnedKeys}
+                    onPinToggle={onPinToggle} />
             { activeTab === 'map' && navTarget && (
                 <button className="rover-nav-cancel-btn" onClick={() => setNavTarget(null)} aria-label="Cancel navigation">✕</button>
             )}
@@ -750,7 +807,10 @@ export default function Rover() {
                 </>
             )}
             { activeTab === 'map' && placingNote && (
-                <div className="rover-placing-note-banner">Tap map to place note</div>
+                <div className="rover-placing-note-banner">
+                    <span className="rover-placing-note-primary">Tap map to place note</span>
+                    <span className="rover-placing-note-hint">Press Add Note button again to cancel</span>
+                </div>
             )}
             { collectModalOpen && (
                 <CollectForm

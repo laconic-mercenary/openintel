@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, Loader2 } from "lucide-react";
-import { getIntelImageUrl } from "../utils/api";
+import { Download, Loader2, Pin } from "lucide-react";
+import { getIntelDetails } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 import CommentsDialog from "./CommentsDialog.jsx";
 import "./ReviewDialog.css";
 
-export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, onDiscard, onExport, onDelete, onEdit, onViewOnMap, onNavigateTo, onError }) {
+export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, onDiscard, onExport, onDelete, onEdit, onViewOnMap, onNavigateTo, onError, isPinned, onPinToggle }) {
 
     // Consts
 
@@ -46,8 +46,8 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
         }
         if (!intelPoint?.hasImage) return;
         let cancelled = false;
-        getIntelImageUrl(intelPoint)
-            .then((presignedUrl) => fetch(presignedUrl))
+        getIntelDetails(intelPoint)
+            .then(({ url }) => fetch(url))
             .then((response) => response.arrayBuffer())
             .then((encryptedBuffer) => decryptBytes(cryptoKey, encryptedBuffer))
             .then((plaintextBuffer) => {
@@ -225,6 +225,14 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
                         )}
                         { onNavigateTo && isConfirmed && (
                             <button className="review-btn review-btn-secondary" onClick={() => { onNavigateTo(intelPoint); onClose?.(); }}>Navigate</button>
+                        )}
+                        { (isConfirmed || isPlanned) && onPinToggle && (
+                            <button
+                                className={`review-btn ${isPinned ? "review-btn-pinned" : "review-btn-secondary"}`}
+                                onClick={onPinToggle}>
+                                <Pin size={13} aria-hidden="true" />
+                                {isPinned ? "Pinned" : "Pin"}
+                            </button>
                         )}
                         { !isPlanned && (
                             exportState === exportStatePreparing ? (

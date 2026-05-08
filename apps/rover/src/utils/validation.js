@@ -1,11 +1,14 @@
 // Consts
 
 const descriptionMaxLen = 300;
+const validTokenPattern = /^[a-zA-Z0-9._-]+$/;
+const validTokenCharPattern = /[a-zA-Z0-9._-]/;
 const imageMaxBytes = 10 * 1024 * 1024;
 const tagMaxLen = 64;
 const tagsMaxCount = 30;
 const intelTypeConfirmed = "confirmed";
 const intelTypeUnconfirmed = "unconfirmed";
+const intelTypePlanned = "planned";
 
 // Functions
 
@@ -43,4 +46,6 @@ const validateCoords = (lat, lon) => {
     return null;
 };
 
-export { descriptionMaxLen, imageMaxBytes, intelTypeConfirmed, intelTypeUnconfirmed, validateDescription, validateImage, validateTags, validateCoords };
+const isValidTokenChar = (char) => validTokenCharPattern.test(char);
+
+export { descriptionMaxLen, imageMaxBytes, intelTypeConfirmed, intelTypeUnconfirmed, intelTypePlanned, validTokenPattern, isValidTokenChar, validateDescription, validateImage, validateTags, validateCoords };

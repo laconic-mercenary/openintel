@@ -12,7 +12,7 @@ import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 import { calculateSimpleCoord } from "../utils/geo";
 import ReviewDialog from "./ReviewDialog.jsx";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget, placingNote, onNotePlaced }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget, placingNote, onNotePlaced, pinnedKeys, onPinToggle }) {
     
     // Consts
     
@@ -782,6 +782,8 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
                     onEdit={(point) => editPlannedIntelRef.current?.(point)}
                     onNavigateTo={(point) => navigateToRef.current?.(point)}
                     onViewOnMap={(point) => onViewOnMap?.(point)}
+                    isPinned={pinnedKeys?.has(reviewIntelPoint?.key)}
+                    onPinToggle={reviewIntelPoint ? () => onPinToggle?.(reviewIntelPoint.geohash, reviewIntelPoint.key) : undefined}
                     onError={onError} />
             )}
         </>

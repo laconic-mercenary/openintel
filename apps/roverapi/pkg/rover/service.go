@@ -37,6 +37,12 @@ type StorePrivateIntelResult struct {
 	PresignedPutURL string
 }
 
+type GetPrivateIntelResult struct {
+	EncryptedPayload string
+	HasImage         bool
+	ImageURL         string
+}
+
 //
 // types
 
@@ -143,6 +149,39 @@ func (service *RoverService) GetImageUploadURL(ctx context.Context, rowKey strin
 		return "", fmt.Errorf("failed to generate image upload URL: %w", urlErr)
 	}
 	return putURL, nil
+}
+
+func (service *RoverService) GetPrivateIntel(ctx context.Context, emailHash, geohash, rowKey string) (GetPrivateIntelResult, error) {
+	log.Trace().Msg("GetPrivateIntel")
+	if validation.IsEmptyStr(emailHash) {
+		return GetPrivateIntelResult{}, ErrEmailHashRequired
+	}
+	if validation.IsEmptyStr(geohash) {
+		return GetPrivateIntelResult{}, ErrGeohashRequired
+	}
+	if validation.IsEmptyStr(rowKey) {
+		return GetPrivateIntelResult{}, ErrKeyRequired
+	}
+	partitionKey := emailHash + geohash
+	intel, getErr := service.metadataRepository.GetPrivateIntelMetadata(ctx, partitionKey, rowKey)
+	if getErr != nil {
+		log.Error().Err(getErr).Str("rowKey", rowKey).Msg("error getting private intel metadata")
+		return GetPrivateIntelResult{}, fmt.Errorf("failed to get intel: %w", getErr)
+	}
+	hasImage := intel.ImageKey != ""
+	result := GetPrivateIntelResult{
+		EncryptedPayload: intel.EncryptedPayload,
+		HasImage:         hasImage,
+	}
+	if hasImage {
+		imageURL, urlErr := service.imageRepository.GetIntelImagePresignedURL(ctx, intel.ImageKey, intelImageURLExpiry)
+		if urlErr != nil {
+			log.Error().Err(urlErr).Str("rowKey", rowKey).Msg("error getting intel image URL")
+			return GetPrivateIntelResult{}, fmt.Errorf("failed to get image URL: %w", urlErr)
+		}
+		result.ImageURL = imageURL
+	}
+	return result, nil
 }
 
 func (service *RoverService) GetPrivateIntelImageURL(ctx context.Context, rowKey string) (string, error) {
