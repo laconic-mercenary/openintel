@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Camera, CircleCheck, HelpCircle, Map, Navigation, Notebook, Pin } from "lucide-react";
 import { calculateDistanceKm } from "../utils/geo";
 import { chipsToFilter, applyFilter } from "../utils/filters";
+import { lsKeyUseCurrentPosition, storageGetBoolean, storageSetBoolean } from "../utils/storage";
 import ChipInput from "./ChipInput.jsx";
 import ReviewDialog from "./ReviewDialog.jsx";
 import "./IntelListView.css";
@@ -22,7 +23,7 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
     // State
 
     const [reviewIntelPoint, setReviewIntelPoint] = useState(null);
-    const [useCurrentPosition, setUseCurrentPosition] = useState(() => localStorage.getItem('useCurrentPosition') !== 'false');
+    const [useCurrentPosition, setUseCurrentPosition] = useState(() => storageGetBoolean(lsKeyUseCurrentPosition, true));
     const [showPositionTooltip, setShowPositionTooltip] = useState(false);
     const [showSearchTip, setShowSearchTip] = useState(false);
 
@@ -105,7 +106,7 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                     </span>
                     <button
                         className={`intel-list-toggle-btn${useCurrentPosition ? " is-on" : ""}`}
-                        onClick={() => setUseCurrentPosition((prev) => { const next = !prev; localStorage.setItem('useCurrentPosition', String(next)); return next; })}
+                        onClick={() => setUseCurrentPosition((prev) => { const next = !prev; storageSetBoolean(lsKeyUseCurrentPosition, next); return next; })}
                         aria-label="Toggle position source">
                         <Navigation size={13} aria-hidden="true" />
                         <span>{useCurrentPosition ? "Current Position" : "Map Center"}</span>
@@ -153,7 +154,7 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                             </span>
                             <span className="intel-list-row-body">
                                 <span className="intel-list-row-desc">
-                                    {point.description?.trim() || "—"}
+                                    {point.description?.trim() || (hasPhoto ? "(image only)" : "—")}
                                 </span>
                                 { (dist || formatAge(point)) && (
                                     <span className="intel-list-row-meta">

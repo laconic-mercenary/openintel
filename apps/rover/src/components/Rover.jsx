@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { intelTypePlanned } from "../utils/validation";
+import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson } from "../utils/storage";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
@@ -44,10 +45,8 @@ export default function Rover() {
 
     const [activeTab, setActiveTab] = useState("map");
     const [collectModalOpen, setCollectModalOpen] = useState(false);
-    const [saveToCloudDefault, setSaveToCloudDefault] = useState(() => localStorage.getItem('saveToCloudDefault') !== 'false');
-    const [recentTags, setRecentTags] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('recentTags') ?? '[]'); } catch { return []; }
-    });
+    const [saveToCloudDefault, setSaveToCloudDefault] = useState(() => storageGetBoolean(lsKeySaveToCloudDefault, true));
+    const [recentTags, setRecentTags] = useState(() => storageGetJson(lsKeyRecentTags, []));
     const [geolocationIsEnabled, setGeolocationIsEnabled] = useState(true);
     const [position, setPosition] = useState(null);
     const [intelPoints, setIntelPoints] = useState([]);
@@ -74,10 +73,8 @@ export default function Rover() {
     const [placingNote, setPlacingNote] = useState(false);
     const [useCurrentPosition, setUseCurrentPosition] = useState(true);
     const [filterChips, setFilterChips] = useState([]);
-    const [showFiltersOnMap, setShowFiltersOnMap] = useState(() => localStorage.getItem('showFiltersOnMap') === 'true');
-    const [pinnedItems, setPinnedItems] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('pinnedItems') ?? '[]'); } catch { return []; }
-    });
+    const [showFiltersOnMap, setShowFiltersOnMap] = useState(() => storageGetBoolean(lsKeyShowFiltersOnMap, false));
+    const [pinnedItems, setPinnedItems] = useState(() => storageGetJson(lsKeyPinnedItems, []));
 
     // Derived
 
@@ -189,7 +186,7 @@ export default function Rover() {
             const next = prev.some((p) => p.key === key)
                 ? prev.filter((p) => p.key !== key)
                 : [...prev, { geohash, key }];
-            localStorage.setItem('pinnedItems', JSON.stringify(next));
+            storageSetJson(lsKeyPinnedItems, next);
             return next;
         });
     };
@@ -264,8 +261,9 @@ export default function Rover() {
     };
 
     const saveRecentTags = (tags) => {
-        localStorage.setItem('recentTags', JSON.stringify(tags));
-        setRecentTags(tags);
+        const filtered = tags.filter((t) => t !== secretTag);
+        storageSetJson(lsKeyRecentTags, filtered);
+        setRecentTags(filtered);
     };
 
     const onIntelReady = (description, b64Image, tags, saveToCloud) => {
@@ -318,10 +316,10 @@ export default function Rover() {
                         await uploadConfirmedIntelImage(confirmedPoint, encryptedImageBuffer, freshUrl, false);
                     } catch (retryErr) {
                         console.error('image upload retry failed:', retryErr);
-                        setError("Intel saved — image upload failed.", retryErr, 'imageUpload', retry);
+                        setError("⚠ Photo still not uploaded — description and location were saved but the photo is missing. Tap ↻ to retry.", retryErr, 'imageUpload', retry);
                     }
                 };
-                setError("Intel saved — image upload failed. Tap ↻ to retry.", imageErr, 'imageUpload', retry);
+                setError("⚠ Photo upload failed — description and location were saved but the photo is missing from the cloud. Tap ↻ to retry.", imageErr, 'imageUpload', retry);
             } else {
                 throw imageErr;
             }
@@ -643,7 +641,7 @@ export default function Rover() {
 
     const onSaveToCloudDefaultChange = (val) => {
         setSaveToCloudDefault(val);
-        localStorage.setItem('saveToCloudDefault', String(val));
+        storageSetBoolean(lsKeySaveToCloudDefault, val);
     };
 
     const onViewOnMap = (intelPoint) => {
@@ -724,7 +722,7 @@ export default function Rover() {
                             filterChips={filterChips}
                             onFilterChipsChange={setFilterChips}
                             showFiltersOnMap={showFiltersOnMap}
-                            onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); localStorage.setItem('showFiltersOnMap', String(val)); }}
+                            onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); storageSetBoolean(lsKeyShowFiltersOnMap, val); }}
                             pinnedKeys={pinnedKeys}
                             onPinToggle={onPinToggle}
                             onError={(msg) => setError(msg, null)} />
