@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Cloud, CloudOff, EyeOff, HelpCircle, Lock, Save } from "lucide-react";
+import { Camera, EyeOff, HelpCircle, Lock, Save } from "lucide-react";
 import { descriptionMaxLen as descriptionMaxLenConst } from "../utils/validation";
 import TagInput from "./TagInput.jsx";
 import CameraCapture from "./CameraCapture.jsx";
@@ -25,7 +25,6 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
 
     const [description, setDescription] = useState("");
     const [tags, setTags] = useState(initialTags);
-    const [saveToCloud, setSaveToCloud] = useState(saveToCloudDefault);
     const [secret, setSecret] = useState(false);
     const [capturedImage, setCapturedImage] = useState(null);
     const [cameraOpen, setCameraOpen] = useState(false);
@@ -79,7 +78,7 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
             return;
         }
         setUserError(null);
-        onIntelReady(trimmed, b64Image ?? null, buildTags(), saveToCloud);
+        onIntelReady(trimmed, b64Image ?? null, buildTags(), saveToCloudDefault);
         resetForm();
         if (mode === "modal") {
             onClose?.();
@@ -144,15 +143,6 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
 
             <div className="collect-toggles">
                 <div className="collect-toggle-row">
-                    <span className="collect-toggle-label">Save to Cloud</span>
-                    <button
-                        className={`collect-toggle-btn${saveToCloud ? " is-on" : ""}`}
-                        onClick={() => setSaveToCloud((prev) => !prev)}>
-                        { saveToCloud ? <Cloud size={14} aria-hidden="true" /> : <CloudOff size={14} aria-hidden="true" /> }
-                        <span>{saveToCloud ? "On" : "Off"}</span>
-                    </button>
-                </div>
-                <div className="collect-toggle-row">
                     <span className="collect-toggle-label">Secret</span>
                     <button
                         className={`collect-toggle-btn${secret ? " is-on" : ""}`}
@@ -172,12 +162,14 @@ export default function CollectForm({ mode, onIntelReady, onClose, tagSuggestion
                 maxLength={descriptionMaxLen} />
 
             <div className="collect-actions">
-                <button className="collect-btn collect-btn--save" onClick={onSaveClick}>
-                    <Save size={16} aria-hidden="true" /> Save
-                </button>
-                <button className="collect-btn collect-btn--photo" onClick={onSavePhotoClick}>
-                    <Camera size={16} aria-hidden="true" /> Photo + Save
-                </button>
+                <div className="collect-actions-primary">
+                    <button className="collect-btn collect-btn--save" onClick={onSaveClick}>
+                        <Save size={16} aria-hidden="true" /> Save
+                    </button>
+                    <button className="collect-btn collect-btn--photo" onClick={onSavePhotoClick}>
+                        <Camera size={16} aria-hidden="true" /> Photo + Save
+                    </button>
+                </div>
                 <div className="collect-actions-separator" />
                 <div className="collect-actions-bottom">
                     <button className="collect-btn collect-btn--clear" onClick={resetForm}>

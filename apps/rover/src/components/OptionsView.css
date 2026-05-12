@@ -46,6 +46,34 @@
     color: rgba(232, 213, 176, 0.75);
 }
 
+.options-segment {
+    display: flex;
+    border-radius: 2rem;
+    border: 1px solid rgba(200, 170, 100, 0.2);
+    overflow: hidden;
+}
+
+.options-segment-btn {
+    flex: 1;
+    padding: 0.45rem 0.75rem;
+    border: none;
+    border-left: 1px solid rgba(200, 170, 100, 0.2);
+    background: rgba(200, 170, 100, 0.06);
+    color: rgba(196, 168, 122, 0.45);
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.options-segment-btn:first-child {
+    border-left: none;
+}
+
+.options-segment-btn.is-on {
+    background: rgba(109, 145, 100, 0.2);
+    color: #8cbf84;
+}
+
 .options-toggle {
     display: flex;
     align-items: center;

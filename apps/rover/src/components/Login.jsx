@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
 import "./Login.css";
 
 export default function Login() {
@@ -57,7 +56,7 @@ export default function Login() {
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
+                        "Content-Type": "application/x-www-form-urlencoded",
                     },
                     body: new URLSearchParams({ email }),
                     signal: requestAbortController.signal,
@@ -79,7 +78,7 @@ export default function Login() {
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
+                        "Content-Type": "application/x-www-form-urlencoded",
                     },
                     body: new URLSearchParams({ email, code }),
                     signal: requestAbortController.signal,

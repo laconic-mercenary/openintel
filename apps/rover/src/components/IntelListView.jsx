@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Camera, CircleCheck, HelpCircle, Map, Navigation, Notebook, Pin } from "lucide-react";
+import { AlertTriangle, Camera, CircleCheck, HelpCircle, Navigation, Notebook, Pin } from "lucide-react";
 import { calculateDistanceKm } from "../utils/geo";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { lsKeyUseCurrentPosition, storageGetBoolean, storageSetBoolean } from "../utils/storage";
@@ -18,7 +18,7 @@ const searchTips = [
     { heading: "OR search", body: "Use 'or' between terms — shows intel matching any of them." },
 ];
 
-export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, filterChips, onFilterChipsChange, showFiltersOnMap, onShowFiltersOnMapChange, pinnedKeys, onPinToggle, onError }) {
+export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, filterChips, onFilterChipsChange, pinnedKeys, onPinToggle, onError }) {
 
     // State
 
@@ -118,16 +118,6 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                         <p><strong>Map Center</strong> — sorts and distances based on where you last panned the map.</p>
                     </div>
                 )}
-                <div className="intel-list-toggle-row">
-                    <span className="intel-list-toggle-label">Show results on map</span>
-                    <button
-                        className={`intel-list-toggle-btn${showFiltersOnMap ? " is-on" : ""}`}
-                        onClick={() => onShowFiltersOnMapChange(!showFiltersOnMap)}
-                        aria-label="Toggle show results on map">
-                        <Map size={13} aria-hidden="true" />
-                        <span>{showFiltersOnMap ? "On" : "Off"}</span>
-                    </button>
-                </div>
             </div>
 
             <div className="intel-list-content">

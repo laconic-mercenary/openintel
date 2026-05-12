@@ -1,7 +1,7 @@
-import { Cloud, CloudOff, FileUp, Locate, LocateOff, LogOut } from "lucide-react";
+import { Cloud, CloudOff, FileUp, Locate, LocateOff, LogOut, Map } from "lucide-react";
 import "./OptionsView.css";
 
-export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, onLogout, onImportIntel }) {
+export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, showFiltersOnMap, onShowFiltersOnMapChange, onLogout, onImportIntel }) {
 
     // DOM
 
@@ -26,7 +26,18 @@ export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle,
                 </div>
 
                 <div className="options-row">
-                    <span className="options-row-label">Save to Cloud by default</span>
+                    <span className="options-row-label">Show Intel on map</span>
+                    <button
+                        className={`options-toggle${showFiltersOnMap ? " is-on" : ""}`}
+                        onClick={() => onShowFiltersOnMapChange?.(!showFiltersOnMap)}
+                        aria-label="Toggle show filters on map">
+                        <Map size={14} aria-hidden="true" />
+                        <span>{showFiltersOnMap ? "On" : "Off"}</span>
+                    </button>
+                </div>
+
+                <div className="options-row">
+                    <span className="options-row-label">Save to Cloud</span>
                     <button
                         className={`options-toggle${saveToCloudDefault ? " is-on" : ""}`}
                         onClick={() => onSaveToCloudDefaultChange?.(!saveToCloudDefault)}

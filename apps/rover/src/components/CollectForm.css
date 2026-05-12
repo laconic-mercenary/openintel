@@ -148,6 +148,16 @@
     margin-top: 0.25rem;
 }
 
+.collect-actions-primary {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.collect-actions-primary .collect-btn {
+    flex: 1;
+    padding: 1rem 0.5rem;
+}
+
 .collect-btn {
     display: flex;
     align-items: center;

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { intelTypePlanned } from "../utils/validation";
-import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson } from "../utils/storage";
+import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, lsKeyRegion, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson, storageGetString } from "../utils/storage";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
@@ -20,7 +20,7 @@ import OptionsView from "./OptionsView.jsx";
 import { currentTimestampMillis } from "../utils/time";
 import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl, getIntelDetails } from "../utils/api";
 import { calculateBearing, calculateDistanceKm } from "../utils/geo";
-import { loadKey } from "../utils/keystore";
+import { loadKey, clearKey } from "../utils/keystore";
 import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
 import { coordsToGeohash5, bboxToGeohash5Cells } from "../utils/geo";
 
@@ -127,7 +127,7 @@ export default function Rover() {
                     navigate(loginPath);
                     return;
                 }
-                return loadKey()
+                return loadKey(storageGetString(lsKeyRegion, null))
                     .then((key) => {
                         if (key) {
                             setCryptoKey(key);
@@ -659,6 +659,7 @@ export default function Rover() {
     const onLogout = async () => {
         try {
             await logout();
+            await clearKey(storageGetString(lsKeyRegion, null));
             navigate(loginPath);
         } catch (error) {
             console.error('failed to logout:', error);
@@ -670,7 +671,7 @@ export default function Rover() {
 
     if (!cryptoKey) {
         if (!encSalt) return null;
-        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} keyLoadFailed={keyLoadFailed} />;
+        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} keyLoadFailed={keyLoadFailed} region={storageGetString(lsKeyRegion, null)} />;
     }
 
     return (
@@ -721,8 +722,6 @@ export default function Rover() {
                             onViewOnMap={onViewOnMap}
                             filterChips={filterChips}
                             onFilterChipsChange={setFilterChips}
-                            showFiltersOnMap={showFiltersOnMap}
-                            onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); storageSetBoolean(lsKeyShowFiltersOnMap, val); }}
                             pinnedKeys={pinnedKeys}
                             onPinToggle={onPinToggle}
                             onError={(msg) => setError(msg, null)} />
@@ -742,6 +741,8 @@ export default function Rover() {
                             onGeolocationToggle={() => setGeolocationIsEnabled((prev) => !prev)}
                             saveToCloudDefault={saveToCloudDefault}
                             onSaveToCloudDefaultChange={onSaveToCloudDefaultChange}
+                            showFiltersOnMap={showFiltersOnMap}
+                            onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); storageSetBoolean(lsKeyShowFiltersOnMap, val); }}
                             onLogout={onLogout}
                             onImportIntel={() => setImportIsOpen(true)} />
                     )}
