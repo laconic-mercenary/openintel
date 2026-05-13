@@ -152,8 +152,7 @@
 
 .rover-locate-btn,
 .rover-satellite-btn,
-.rover-add-note-btn,
-.rover-get-intel-btn {
+.rover-add-note-btn {
     position: fixed;
     right: 1rem;
     z-index: 200;
@@ -199,10 +198,6 @@
     100% { box-shadow: 0 0 0 0 rgba(109, 145, 100, 0); }
 }
 
-.rover-get-intel-btn {
-    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 3);
-    color: #c29a57;
-}
 
 .rover-placing-note-banner {
     position: fixed;
@@ -349,8 +344,7 @@
 
 .rover-locate-btn:hover,
 .rover-satellite-btn:hover,
-.rover-add-note-btn:hover,
-.rover-get-intel-btn:hover {
+.rover-add-note-btn:hover {
     background: rgba(30, 30, 30, 0.85);
 }
 

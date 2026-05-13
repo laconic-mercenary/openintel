@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, CloudUpload, Feather, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
+import { Check, CloudUpload, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { intelTypePlanned } from "../utils/validation";
 import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, lsKeyRegion, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson, storageGetString } from "../utils/storage";
@@ -44,7 +44,6 @@ export default function Rover() {
     // State
 
     const [activeTab, setActiveTab] = useState("map");
-    const [collectModalOpen, setCollectModalOpen] = useState(false);
     const [saveToCloudDefault, setSaveToCloudDefault] = useState(() => storageGetBoolean(lsKeySaveToCloudDefault, true));
     const [recentTags, setRecentTags] = useState(() => storageGetJson(lsKeyRecentTags, []));
     const [geolocationIsEnabled, setGeolocationIsEnabled] = useState(true);
@@ -788,9 +787,6 @@ export default function Rover() {
             )}
             { activeTab === 'map' && (
                 <>
-                    <button className="rover-get-intel-btn" onClick={() => setCollectModalOpen(true)} aria-label="Collect Intel">
-                        <Feather size={24} aria-hidden="true" />
-                    </button>
                     <button
                         className={`rover-add-note-btn${placingNote ? " is-active" : ""}`}
                         onClick={() => setPlacingNote((prev) => !prev)}
@@ -810,16 +806,6 @@ export default function Rover() {
                     <span className="rover-placing-note-primary">Tap map to place note</span>
                     <span className="rover-placing-note-hint">Press Add Note button again to cancel</span>
                 </div>
-            )}
-            { collectModalOpen && (
-                <CollectForm
-                    mode="modal"
-                    onIntelReady={onIntelReady}
-                    onClose={() => setCollectModalOpen(false)}
-                    tagSuggestions={allTags}
-                    initialTags={recentTags}
-                    saveToCloudDefault={saveToCloudDefault}
-                    clearSignal={collectClearSignal} />
             )}
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             { cloudSaveMessage && (
