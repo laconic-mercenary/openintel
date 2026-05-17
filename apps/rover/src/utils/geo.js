@@ -101,3 +101,9 @@ export const calculateSimpleCoord = (lat, lon, distanceInKM, bearing) => {
     // will need a latitude correction if require a wrap around
     return [lon2DegNormalized, lat2Deg];
 };
+
+export const pointInBounds = (lat, lon, bounds) => {
+    if (!bounds) return true;
+    return lat >= bounds.minLat && lat <= bounds.maxLat &&
+           lon >= bounds.minLon && lon <= bounds.maxLon;
+};

@@ -109,7 +109,7 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
 
     const fetchAndPrepare = async () => {
         try {
-            const presignedUrl = await getIntelImageUrl(intelPoint);
+            const { url: presignedUrl } = await getIntelDetails(intelPoint);
             const encryptedBuffer = await fetch(presignedUrl).then((r) => r.arrayBuffer());
             const plaintextBuffer = await decryptBytes(cryptoKey, encryptedBuffer);
             const bytes = new Uint8Array(plaintextBuffer);

@@ -18,10 +18,11 @@ import CollectForm from "./CollectForm.jsx";
 import OptionsView from "./OptionsView.jsx";
 
 import { currentTimestampMillis } from "../utils/time";
-import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl, getIntelDetails } from "../utils/api";
-import { calculateBearing, calculateDistanceKm } from "../utils/geo";
+import { storeIntel, listIntel, deleteIntel, updateIntel, getSession, logout, uploadIntelImage, getImageUploadUrl, getIntelDetails, getComments } from "../utils/api";
+import { calculateBearing, calculateDistanceKm, pointInBounds } from "../utils/geo";
 import { loadKey, clearKey } from "../utils/keystore";
-import { encryptText, encryptBytes, decryptText } from "../utils/crypto";
+import { exportIntel, estimateFileCount } from "../utils/export";
+import { encryptText, encryptBytes, decryptText, decryptBytes } from "../utils/crypto";
 import { coordsToGeohash5, bboxToGeohash5Cells } from "../utils/geo";
 
 import "./Rover.css";
@@ -70,6 +71,9 @@ export default function Rover() {
     const [collectClearSignal, setCollectClearSignal] = useState(0);
     const [mapCenter, setMapCenter] = useState(null);
     const [placingNote, setPlacingNote] = useState(false);
+    const [exportingIntel, setExportingIntel] = useState(false);
+    const [exportProgress, setExportProgress] = useState(null);
+    const [mapZoom, setMapZoom] = useState(0);
     const [useCurrentPosition, setUseCurrentPosition] = useState(true);
     const [filterChips, setFilterChips] = useState([]);
     const [showFiltersOnMap, setShowFiltersOnMap] = useState(() => storageGetBoolean(lsKeyShowFiltersOnMap, false));
@@ -98,6 +102,8 @@ export default function Rover() {
     const hasAutoZoomedRef = useRef(false);
     const mapCenterRef = useRef(null);
     const activeTabRef = useRef(activeTab);
+    const viewportBoundsRef = useRef(null);
+    const exportCancelledRef = useRef(false);
     const lastFetchedGeohashRef = useRef(null);
 
     // Effects
@@ -435,6 +441,8 @@ export default function Rover() {
     };
 
     const onBoundsChange = async (minLat, minLon, maxLat, maxLon, zoom) => {
+        viewportBoundsRef.current = { minLat, minLon, maxLat, maxLon };
+        setMapZoom(zoom);
         setMapCenter({ latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2 });
         const key = cryptoKeyRef.current;
         if (!key) return;
@@ -651,6 +659,54 @@ export default function Rover() {
         }
     };
 
+    const onStartExport = () => {
+        setNavTarget(null);
+        setPlacingNote(false);
+        setExportingIntel(true);
+        setActiveTab('map');
+    };
+
+    const onExportCancel = () => {
+        exportCancelledRef.current = true;
+        setExportingIntel(false);
+        setExportProgress(null);
+    };
+
+    const onExportConfirm = async () => {
+        const bounds = viewportBoundsRef.current;
+        const viewportItems = intelPoints.filter((p) =>
+            p.confirmed && pointInBounds(p.latitude, p.longitude, bounds)
+        );
+        if (viewportItems.length === 0) {
+            setError('No saved intel in the current viewport to export.', null);
+            return;
+        }
+        exportCancelledRef.current = false;
+        setExportingIntel(false);
+        setExportProgress({ fileIndex: 1, totalFiles: estimateFileCount(viewportItems), itemsProcessed: 0, totalItems: viewportItems.length, itemsInBatch: 0 });
+        try {
+            await exportIntel(
+                viewportItems,
+                cryptoKeyRef.current,
+                getIntelDetails,
+                decryptBytes,
+                getComments,
+                decryptText,
+                setExportProgress,
+                () => exportCancelledRef.current,
+            );
+            if (!exportCancelledRef.current) {
+                storageSetJson(lsKeyPinnedItems, []);
+                setPinnedItems([]);
+            }
+        } catch (exportErr) {
+            console.error('export failed:', exportErr);
+            if (!exportCancelledRef.current) setError('Export failed — please try again.', exportErr);
+        } finally {
+            setExportProgress(null);
+        }
+    };
+
     const onDiscardAllUnconfirmed = () => {
         setIntelPoints((prev) => prev.filter((p) => p.confirmed || p.planned));
     };
@@ -743,6 +799,7 @@ export default function Rover() {
                             showFiltersOnMap={showFiltersOnMap}
                             onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); storageSetBoolean(lsKeyShowFiltersOnMap, val); }}
                             onLogout={onLogout}
+                            onExportAll={onStartExport}
                             onImportIntel={() => setImportIsOpen(true)} />
                     )}
                 </div>
@@ -807,6 +864,34 @@ export default function Rover() {
                     <span className="rover-placing-note-hint">Press Add Note button again to cancel</span>
                 </div>
             )}
+            { exportProgress && (
+                <div className="rover-export-progress-overlay">
+                    <div className="rover-export-progress-dialog">
+                        <p className="rover-export-progress-title">Exporting Intel</p>
+                        <p className="rover-export-progress-subtitle">File {exportProgress.fileIndex} of ~{exportProgress.totalFiles}</p>
+                        <div className="rover-export-progress-bar-track">
+                            <div
+                                className="rover-export-progress-bar-fill"
+                                style={{ width: `${exportProgress.totalItems > 0 ? Math.round((exportProgress.itemsProcessed / exportProgress.totalItems) * 100) : 0}%` }} />
+                        </div>
+                        <p className="rover-export-progress-count">{exportProgress.itemsProcessed} / {exportProgress.totalItems} items</p>
+                        <p className="rover-export-progress-warning">Keep this tab open until all files have downloaded</p>
+                        <button className="rover-export-progress-cancel" onClick={onExportCancel}>Cancel</button>
+                    </div>
+                </div>
+            )}
+            { activeTab === 'map' && exportingIntel && (
+                <>
+                    <button className="rover-nav-cancel-btn" onClick={onExportCancel} aria-label="Cancel export">✕</button>
+                    <div className="rover-export-banner">
+                        <span className="rover-export-banner-text">Zoom and pan to the area you want to export — all points in the viewport will be exported</span>
+                        { mapZoom >= minIntelQueryZoom
+                            ? <button className="rover-export-banner-ok" onClick={onExportConfirm}>Export</button>
+                            : <span className="rover-export-banner-zoom-warning">Too far out — zoom in to export</span>
+                        }
+                    </div>
+                </>
+            )}
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             { cloudSaveMessage && (
                 <div className="rover-save-all-group">
@@ -849,7 +934,12 @@ export default function Rover() {
             { importIsOpen && (
                 <ImportIntelDialog
                     onImport={onImportIntel}
+                    onMassImportComplete={(imported, skipped, failed) => {
+                        setImportIsOpen(false);
+                        showSuccess(`Imported ${imported} item${imported !== 1 ? 's' : ''}${skipped > 0 ? `, ${skipped} skipped` : ''}${failed > 0 ? `, ${failed} failed` : ''}.`);
+                    }}
                     cryptoKey={cryptoKey}
+                    intelPoints={intelPoints}
                     onCancel={() => setImportIsOpen(false)} />
             )}
             { locateIntelPoint && <LocateArrow onConfirm={onLocateConfirm} /> }

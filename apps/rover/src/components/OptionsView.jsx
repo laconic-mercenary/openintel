@@ -1,13 +1,32 @@
-import { Cloud, CloudOff, FileUp, Locate, LocateOff, LogOut, Map } from "lucide-react";
+import { Cloud, CloudOff, FileDown, FileUp, Locate, LocateOff, LogOut, Map } from "lucide-react";
 import "./OptionsView.css";
 
-export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, showFiltersOnMap, onShowFiltersOnMapChange, onLogout, onImportIntel }) {
+export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, showFiltersOnMap, onShowFiltersOnMapChange, onLogout, onExportAll, onImportIntel }) {
 
     // DOM
 
     return (
         <div className="options-view">
             <h2 className="options-heading">Options</h2>
+
+            <section className="options-section">
+                <h3 className="options-section-title">User</h3>
+                <button className="options-action-btn options-action-btn--danger" onClick={onLogout}>
+                    <LogOut size={16} aria-hidden="true" /> Logout
+                </button>
+            </section>
+
+            <section className="options-section">
+                <h3 className="options-section-title">Import / Export</h3>
+
+                <button className="options-action-btn" onClick={onExportAll}>
+                    <FileDown size={16} aria-hidden="true" /> Export Intel
+                </button>
+
+                <button className="options-action-btn" onClick={onImportIntel}>
+                    <FileUp size={16} aria-hidden="true" /> Import Intel
+                </button>
+            </section>
 
             <section className="options-section">
                 <h3 className="options-section-title">Collection</h3>
@@ -48,18 +67,6 @@ export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle,
                         <span>{saveToCloudDefault ? "On" : "Off"}</span>
                     </button>
                 </div>
-            </section>
-
-            <section className="options-section">
-                <h3 className="options-section-title">Account</h3>
-
-                <button className="options-action-btn" onClick={onImportIntel}>
-                    <FileUp size={16} aria-hidden="true" /> Import Intel
-                </button>
-
-                <button className="options-action-btn options-action-btn--danger" onClick={onLogout}>
-                    <LogOut size={16} aria-hidden="true" /> Logout
-                </button>
             </section>
 
             <section className="options-section">
