@@ -71,8 +71,6 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
     const importMassItem = async (item, existingTimestamps) => {
         if (existingTimestamps.has(item.timestamp)) return 'skipped';
 
-        // RowKey format is {obfuscatedTs}-{uuid} — strip the prefix so the server re-derives the same R2 image key
-        const intelKey = item.key?.replace(/^\d+-/, '') ?? crypto.randomUUID();
         const geohash = coordsToGeohash5(item.latitude, item.longitude);
         const payload = JSON.stringify({
             lat: item.latitude,
@@ -86,7 +84,6 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
         const encryptedPayload = await encryptText(cryptoKey, payload);
 
         const { key: storedRowKey, presignedPutUrl } = await storeIntel({
-            key: intelKey,
             geohash,
             encryptedPayload,
             hasImage: !!item.b64image,

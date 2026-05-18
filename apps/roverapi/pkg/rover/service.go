@@ -2,6 +2,7 @@ package rover
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -96,9 +97,6 @@ func WithCommentRepository(repo storage.PrivateIntelCommentRepository) RoverServ
 
 func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storage.PrivateIntel) (StorePrivateIntelResult, error) {
 	log.Trace().Msg("StorePrivateIntel")
-	if validation.IsEmptyStr(intel.Key) {
-		return StorePrivateIntelResult{}, ErrKeyRequired
-	}
 	if validation.IsEmptyStr(intel.Geohash) {
 		return StorePrivateIntelResult{}, ErrGeohashRequired
 	}
@@ -108,6 +106,8 @@ func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storag
 	if validation.IsEmptyStr(intel.EncryptedPayload) {
 		return StorePrivateIntelResult{}, ErrEncryptedPayloadRequired
 	}
+
+	intel.Key = intelDigest(intel.EmailHash, intel.Geohash, intel.TimestampObfuscated)
 
 	var presignedPutURL string
 	if intel.HasImage {
@@ -124,6 +124,9 @@ func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storag
 	intelMeta.Timestamp = 0
 	rowKey, storeMetaErr := service.metadataRepository.StorePrivateIntelMetadata(ctx, intelMeta)
 	if storeMetaErr != nil {
+		if errors.Is(storeMetaErr, storage.ErrIntelAlreadyExists) {
+			return StorePrivateIntelResult{RowKey: rowKey}, storage.ErrIntelAlreadyExists
+		}
 		log.Error().Err(storeMetaErr).Str("key", intel.Key).Msg("error storing intel metadata")
 		return StorePrivateIntelResult{}, fmt.Errorf("failed to store metadata: %w", storeMetaErr)
 	}
@@ -319,8 +322,13 @@ func (service *RoverService) ListComments(ctx context.Context, intelRowKey strin
 	return items, nil
 }
 
+func intelDigest(emailHash, geohash string, obfuscatedTs int64) string {
+	h := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%d", emailHash, geohash, obfuscatedTs)))
+	return fmt.Sprintf("%x", h[:16])
+}
+
 // imageKeyFromRowKey derives the S3 image key from the RowKey.
-// RowKey format: {20-digit-padded-ts}-{uuid} — splits on first dash, uuid suffix becomes image key base.
+// RowKey format: {20-digit-padded-ts}-{digest} — splits on first dash, digest suffix becomes image key.
 func imageKeyFromRowKey(rowKey string) (string, error) {
 	parts := strings.SplitN(rowKey, "-", 2)
 	if len(parts) != 2 || parts[1] == "" {

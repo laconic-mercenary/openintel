@@ -3,25 +3,23 @@ package validation
 import (
 	"errors"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 //
 // consts and globals
 
 const (
-	geohashAlphabet    = "0123456789bcdefghjkmnpqrstuvwxyz"
-	geohash5Len        = 5
-	rowKeyLen          = 57
-	rowKeyPrefixLen    = 20
-	rowKeySeparatorPos = 20
-	rowKeySeparator    = '-'
+	geohashAlphabet      = "0123456789bcdefghjkmnpqrstuvwxyz"
+	geohash5Len          = 5
+	rowKeyPrefixLen      = 20
+	rowKeySeparatorPos   = 20
+	rowKeySeparator      = '-'
+	rowKeyDigestLen      = 53 // {20-digit-ts}-{32-char-sha256-digest}
+	rowKeyLegacyLen      = 57 // {20-digit-ts}-{36-char-uuid} — existing data
 )
 
 var (
 	ErrInvalidGeohash     = errors.New("invalid geohash")
-	ErrInvalidIntelKey    = errors.New("invalid intel key")
 	ErrInvalidIntelRowKey = errors.New("invalid intel row key")
 )
 
@@ -40,14 +38,11 @@ func IsValidGeohash5(s string) bool {
 	return true
 }
 
-func IsValidIntelKey(s string) bool {
-	_, parseErr := uuid.Parse(s)
-	return parseErr == nil
-}
-
-// IsValidIntelRowKey validates the server-generated rowKey format: {20 digits}-{UUID}
+// IsValidIntelRowKey validates the server-generated rowKey format.
+// Accepts both the legacy format {20-digit-ts}-{36-char-uuid} and the new format {20-digit-ts}-{32-char-sha256-digest}.
 func IsValidIntelRowKey(s string) bool {
-	if len(s) != rowKeyLen {
+	n := len(s)
+	if n != rowKeyDigestLen && n != rowKeyLegacyLen {
 		return false
 	}
 	for i := range rowKeyPrefixLen {
@@ -58,6 +53,5 @@ func IsValidIntelRowKey(s string) bool {
 	if s[rowKeySeparatorPos] != rowKeySeparator {
 		return false
 	}
-	_, parseErr := uuid.Parse(s[rowKeyPrefixLen+1:])
-	return parseErr == nil
+	return true
 }

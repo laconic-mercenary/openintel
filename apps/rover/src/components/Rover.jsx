@@ -356,7 +356,6 @@ export default function Rover() {
             }
 
             const { key: rowKey, presignedPutUrl } = await storeIntel({
-                key: intelPoint.key,
                 geohash,
                 encryptedPayload,
                 hasImage: !!encryptedImageBuffer,

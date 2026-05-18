@@ -1,5 +1,8 @@
 // consts and globals
 
+import { lsKeyRegion, storageGetString } from "./storage";
+
+const regionHeader = "X-Intel-Region";
 const requestTimeoutMs = 45000;
 const requestMaxRetries = 3;
 // delay between retries gives the network stack (especially iOS) time to recover before the next attempt
@@ -9,15 +12,21 @@ const imageUploadMaxRetries = 2;
 
 // functions
 
+export const getRegionHeaders = () => {
+    const region = storageGetString(lsKeyRegion, null);
+    return region ? { [regionHeader]: region } : {};
+};
+
 const fetchWithTimeout = async (url, options = {}, onAttempt) => {
     let lastErr;
+    const headers = { ...getRegionHeaders(), ...(options.headers ?? {}) };
     for (let attempt = 0; attempt < requestMaxRetries; attempt++) {
         if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
         onAttempt?.(attempt);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
         try {
-            return await fetch(url, { ...options, signal: controller.signal });
+            return await fetch(url, { ...options, headers, signal: controller.signal });
         } catch (fetchErr) {
             lastErr = fetchErr;
         } finally {
@@ -42,7 +51,6 @@ export const storeIntel = async (intelPoint, onAttempt) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            key: intelPoint.key,
             geohash: intelPoint.geohash,
             encryptedPayload: intelPoint.encryptedPayload,
             hasImage: intelPoint.hasImage,

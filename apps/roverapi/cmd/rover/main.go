@@ -67,7 +67,6 @@ type updateIntelRequest struct {
 }
 
 type storeIntelRequest struct {
-	Key              string `json:"key"`
 	Geohash          string `json:"geohash"`
 	HasImage         bool   `json:"hasImage"`
 	EncryptedPayload string `json:"encryptedPayload"`
@@ -150,18 +149,12 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidGeohash, errInvalidGeohash)
 			return
 		}
-		if !validation.IsValidIntelKey(req.Key) {
-			log.Warn().Str("key", req.Key).Msg("invalid key in store request")
-			server.RespondWithError(writer, http.StatusBadRequest, validation.ErrInvalidIntelKey, errInvalidKey)
-			return
-		}
 
 		emailHash := security.HmacSha256Hex(email, emailHashPepper)
 		hmacBytes := security.HmacSha256Bytes(email, timestampPepper)
 		obfuscatedTs := req.Timestamp + int64(binary.BigEndian.Uint32(hmacBytes[:4])) // TODO: 4 = first 4 bytes of HMAC → uint32 offset; per-user constant derived from email pepper
 
 		intel := storage.PrivateIntel{
-			Key:                 req.Key,
 			Geohash:             req.Geohash,
 			HasImage:            req.HasImage,
 			EncryptedPayload:    req.EncryptedPayload,
@@ -172,6 +165,18 @@ func handleStoreIntel(roverService *rover.RoverService, jwtSecret []byte, emailH
 
 		result, storeErr := roverService.StorePrivateIntel(request.Context(), intel)
 		if storeErr != nil {
+			if errors.Is(storeErr, storage.ErrIntelAlreadyExists) {
+				resp := storeIntelResponse{Key: result.RowKey, Geohash: req.Geohash}
+				respBytes, marshalErr := json.Marshal(resp)
+				if marshalErr != nil {
+					server.RespondWithError(writer, http.StatusInternalServerError, marshalErr, errFailedToMarshal)
+					return
+				}
+				writer.Header().Set(server.HeaderContentType, server.ContentTypeJSON)
+				writer.WriteHeader(http.StatusConflict)
+				writer.Write(respBytes)
+				return
+			}
 			log.Error().Err(storeErr).Msg("failed to store intel")
 			server.RespondWithError(writer, http.StatusInternalServerError, storeErr, errFailedToStoreIntel)
 			return

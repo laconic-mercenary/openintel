@@ -10,9 +10,10 @@ import (
 // consts and globals
 
 var (
-	ErrNotFound        = errors.New("not found")
-	ErrTooManyComments = errors.New("comment limit reached")
-	ErrCommentInvalid  = errors.New("comment is invalid")
+	ErrNotFound            = errors.New("not found")
+	ErrTooManyComments     = errors.New("comment limit reached")
+	ErrCommentInvalid      = errors.New("comment is invalid")
+	ErrIntelAlreadyExists  = errors.New("intel already exists")
 )
 
 //

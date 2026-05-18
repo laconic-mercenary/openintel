@@ -15,7 +15,8 @@ import (
 // consts and globals
 
 const (
-	tableErrResourceNotFound = "ResourceNotFound"
+	tableErrResourceNotFound  = "ResourceNotFound"
+	tableErrEntityAlreadyExists = "EntityAlreadyExists"
 )
 
 //
@@ -95,6 +96,11 @@ func (repository *AZPrivateIntelRepository) StorePrivateIntelMetadata(ctx contex
 	}
 	_, addErr := repository.tableClient.AddEntity(ctx, entityBytes, nil)
 	if addErr != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(addErr, &respErr) && respErr.ErrorCode == tableErrEntityAlreadyExists {
+			log.Debug().Str("rowKey", rowKey).Msg("intel already exists")
+			return rowKey, ErrIntelAlreadyExists
+		}
 		log.Error().Err(addErr).Str("key", intel.Key).Msg("error adding intel entity to table")
 		return "", addErr
 	}
