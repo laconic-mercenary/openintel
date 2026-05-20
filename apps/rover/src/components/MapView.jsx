@@ -12,7 +12,7 @@ import markerPlannedUrl from "../assets/markers/intel-planned.svg";
 import { calculateSimpleCoord } from "../utils/geo";
 import ReviewDialog from "./ReviewDialog.jsx";
 
-export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget, placingNote, onNotePlaced, pinnedKeys, onPinToggle }) {
+export default function MapView({ position, intelPoints, cryptoKey, geolocationIsEnabled, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onBoundsChange, onError, onAddPlannedIntel, onEditPlannedIntel, onEditIntelTags, onNavigateTo, onViewOnMap, tagSuggestions = [], zoomToPositionSignal, zoomToNewIntelSignal, flyToLocationSignal, mapCenterRef, isSatellite, navTarget, placingNote, onNotePlaced, pinnedKeys, onPinToggle }) {
     
     // Consts
     
@@ -137,7 +137,6 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     const intelPointsRef = useRef(intelPoints);
     const keepIntelRef = useRef(onKeepIntel);
     const discardIntelRef = useRef(onDiscardIntel);
-    const exportIntelRef = useRef(onExportIntel);
     const navigateToRef = useRef(onNavigateTo);
     const activeIntelActionsPopupRef = useRef(null);
     const markerClickConsumedRef = useRef(false);
@@ -177,10 +176,6 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
     useEffect(() => {
         discardIntelRef.current = onDiscardIntel;
     }, [onDiscardIntel]);
-
-    useEffect(() => {
-        exportIntelRef.current = onExportIntel;
-    }, [onExportIntel]);
 
     useEffect(() => {
         navigateToRef.current = onNavigateTo;
@@ -772,16 +767,17 @@ export default function MapView({ position, intelPoints, cryptoKey, geolocationI
             <div className="map-rover" ref={roverMapContainerRef}></div>
             { reviewIntelPoint && (
                 <ReviewDialog
-                    intelPoint={reviewIntelPoint}
+                    intelPoint={intelPoints.find((p) => p.key === reviewIntelPoint.key) ?? reviewIntelPoint}
                     cryptoKey={cryptoKey}
                     onClose={() => setReviewIntelPoint(null)}
                     onKeep={(point) => keepIntelRef.current?.(point)}
                     onDiscard={(point) => discardIntelRef.current?.(point)}
-                    onExport={(point) => exportIntelRef.current?.(point)}
                     onDelete={(point) => deleteConfirmedIntelRef.current?.(point)}
                     onEdit={(point) => editPlannedIntelRef.current?.(point)}
+                    onEditTags={onEditIntelTags}
                     onNavigateTo={(point) => navigateToRef.current?.(point)}
                     onViewOnMap={(point) => onViewOnMap?.(point)}
+                    tagSuggestions={tagSuggestions}
                     isPinned={pinnedKeys?.has(reviewIntelPoint?.key)}
                     onPinToggle={reviewIntelPoint ? () => onPinToggle?.(reviewIntelPoint.geohash, reviewIntelPoint.key) : undefined}
                     onError={onError} />

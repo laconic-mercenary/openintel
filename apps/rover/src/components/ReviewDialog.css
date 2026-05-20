@@ -106,10 +106,18 @@
   font-size: 0.78rem;
 }
 
+.review-tags-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .review-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 
 .review-tag {
@@ -119,6 +127,88 @@
   font-size: 0.75rem;
   padding: 2px 8px;
   border: 1px solid rgba(200, 170, 100, 0.18);
+}
+
+.review-tags-empty {
+  color: rgba(196, 168, 122, 0.42);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.review-tags-edit {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  line-height: 1;
+  border: 1px solid rgba(200, 170, 100, 0.2);
+  border-radius: 6px;
+  background: rgba(200, 170, 100, 0.08);
+  color: rgba(196, 168, 122, 0.78);
+  cursor: pointer;
+}
+
+.review-tags-edit svg {
+  display: block;
+}
+
+.review-tags-edit:hover {
+  background: rgba(200, 170, 100, 0.14);
+  color: rgba(232, 213, 176, 0.95);
+}
+
+.review-tags-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.review-tags-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
+  align-items: start;
+  gap: 6px;
+}
+
+.review-tags-editor .tag-input-wrapper {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.review-tags-error {
+  margin: 0;
+  color: #ff9b9b;
+  font-size: 0.82rem;
+}
+
+.review-tags-editor-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+  border: 1px solid rgba(200, 170, 100, 0.22);
+  border-radius: 6px;
+  background: rgba(163, 63, 54, 0.14);
+  color: #e07070;
+  cursor: pointer;
+}
+
+.review-tags-editor-btn-save {
+  background: rgba(79, 140, 255, 0.14);
+  color: #7fb0ff;
+  border-color: rgba(79, 140, 255, 0.35);
+}
+
+.review-tags-editor-btn svg {
+  display: block;
+}
+
+.review-tags-editor-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .review-actions {

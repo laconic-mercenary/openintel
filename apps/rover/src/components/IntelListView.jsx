@@ -18,7 +18,7 @@ const searchTips = [
     { heading: "OR search", body: "Use 'or' between terms — shows intel matching any of them." },
 ];
 
-export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onExportIntel, onNavigateTo, onViewOnMap, filterChips, onFilterChipsChange, pinnedKeys, onPinToggle, onError }) {
+export default function IntelListView({ intelPoints, position, mapCenter, cryptoKey, onKeepIntel, onDiscardIntel, onDeleteConfirmedIntel, onEditPlannedIntel, onEditIntelTags, onNavigateTo, onViewOnMap, tagSuggestions = [], filterChips, onFilterChipsChange, pinnedKeys, onPinToggle, onError }) {
 
     // State
 
@@ -73,6 +73,11 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
     };
 
     const onCloseReview = () => setReviewIntelPoint(null);
+
+    const selectedIntelPoint = useMemo(() => {
+        if (!reviewIntelPoint) return null;
+        return intelPoints.find((p) => p.key === reviewIntelPoint.key) ?? reviewIntelPoint;
+    }, [intelPoints, reviewIntelPoint]);
 
     // DOM
 
@@ -165,20 +170,21 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                 })}
             </div>
 
-            { reviewIntelPoint && (
+            { selectedIntelPoint && (
                 <ReviewDialog
-                    intelPoint={reviewIntelPoint}
+                    intelPoint={selectedIntelPoint}
                     cryptoKey={cryptoKey}
                     onClose={onCloseReview}
                     onKeep={(p) => { onKeepIntel(p); onCloseReview(); }}
                     onDiscard={(p) => { onDiscardIntel(p); onCloseReview(); }}
-                    onExport={(p) => { onExportIntel(p); onCloseReview(); }}
                     onDelete={(p) => { onDeleteConfirmedIntel(p); onCloseReview(); }}
                     onEdit={(p) => { onEditPlannedIntel(p); onCloseReview(); }}
+                    onEditTags={onEditIntelTags}
                     onNavigateTo={onNavigateTo}
                     onViewOnMap={(p) => { onViewOnMap?.(p); onCloseReview(); }}
-                    isPinned={pinnedKeys?.has(reviewIntelPoint?.key)}
-                    onPinToggle={reviewIntelPoint ? () => onPinToggle?.(reviewIntelPoint.geohash, reviewIntelPoint.key) : undefined}
+                    tagSuggestions={tagSuggestions}
+                    isPinned={pinnedKeys?.has(selectedIntelPoint?.key)}
+                    onPinToggle={selectedIntelPoint ? () => onPinToggle?.(selectedIntelPoint.geohash, selectedIntelPoint.key) : undefined}
                     onError={onError} />
             )}
         </div>

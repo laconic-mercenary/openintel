@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, Loader2, Pin } from "lucide-react";
+import { Download, Loader2, Pencil, Pin, Save, X } from "lucide-react";
 import { getIntelDetails } from "../utils/api";
 import { decryptBytes } from "../utils/crypto";
 import CommentsDialog from "./CommentsDialog.jsx";
+import TagInput from "./TagInput.jsx";
 import "./ReviewDialog.css";
 
-export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, onDiscard, onExport, onDelete, onEdit, onViewOnMap, onNavigateTo, onError, isPinned, onPinToggle }) {
+export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, onDiscard, onDelete, onEdit, onEditTags, onViewOnMap, onNavigateTo, onError, tagSuggestions = [], isPinned, onPinToggle }) {
 
     // Consts
 
@@ -19,6 +20,10 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
     const [commentsOpen, setCommentsOpen] = useState(false);
     const [deleteConfirming, setDeleteConfirming] = useState(false);
     const [exportState, setExportState] = useState(null);
+    const [tagsEditing, setTagsEditing] = useState(false);
+    const [tagsDraft, setTagsDraft] = useState(intelPoint.tags ?? []);
+    const [tagsSaving, setTagsSaving] = useState(false);
+    const [tagsError, setTagsError] = useState(null);
 
     // References
 
@@ -30,6 +35,10 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
     useEffect(() => {
         setDeleteConfirming(false);
         setCommentsOpen(false);
+        setTagsEditing(false);
+        setTagsDraft(intelPoint.tags ?? []);
+        setTagsSaving(false);
+        setTagsError(null);
         setImageUrl(null);
         if (blobUrlRef.current) {
             URL.revokeObjectURL(blobUrlRef.current);
@@ -156,6 +165,33 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
         onClose?.();
     };
 
+    const onTagsEditClick = () => {
+        setTagsDraft(intelPoint.tags ?? []);
+        setTagsError(null);
+        setTagsEditing(true);
+    };
+
+    const onTagsCancel = () => {
+        if (tagsSaving) return;
+        setTagsEditing(false);
+        setTagsDraft(intelPoint.tags ?? []);
+        setTagsError(null);
+    };
+
+    const onTagsSave = async () => {
+        setTagsSaving(true);
+        setTagsError(null);
+        try {
+            await onEditTags?.(intelPoint, tagsDraft);
+            setTagsEditing(false);
+        } catch (tagsErr) {
+            console.error("failed to update tags:", tagsErr);
+            setTagsError("Tags could not be saved. Please try again.");
+        } finally {
+            setTagsSaving(false);
+        }
+    };
+
     // DOM
 
     if (!intelPoint) return null;
@@ -163,6 +199,7 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
     const isUnconfirmed = !intelPoint.confirmed;
     const isPlanned = !!intelPoint.planned;
     const isConfirmed = intelPoint.confirmed && !intelPoint.planned;
+    const tagsAreEditable = (isConfirmed || isPlanned) && onEditTags;
 
     const title = isPlanned ? "Note" : "Intel";
 
@@ -190,11 +227,34 @@ export default function ReviewDialog({ intelPoint, cryptoKey, onClose, onKeep, o
                 </p>
                 <p className="review-meta">{formatTimestamp(intelPoint.timestamp)}</p>
 
-                { intelPoint.tags?.length > 0 && (
-                    <div className="review-tags">
-                        { intelPoint.tags.map((tag) => (
-                            <span key={tag} className="review-tag">{tag}</span>
-                        ))}
+                { tagsEditing ? (
+                    <div className="review-tags-editor">
+                        { tagsError && <p className="review-tags-error">{tagsError}</p> }
+                        <div className="review-tags-editor-row">
+                            <TagInput tags={tagsDraft} onTagsChange={setTagsDraft} suggestions={tagSuggestions} />
+                            <button className="review-tags-editor-btn" type="button" onClick={onTagsCancel} disabled={tagsSaving} aria-label="Cancel tag edit">
+                                <X size={15} aria-hidden="true" />
+                            </button>
+                            <button className="review-tags-editor-btn review-tags-editor-btn-save" type="button" onClick={onTagsSave} disabled={tagsSaving} aria-label="Save tags">
+                                {tagsSaving ? <Loader2 size={15} className="review-export-spinning" aria-hidden="true" /> : <Save size={15} aria-hidden="true" />}
+                            </button>
+                        </div>
+                    </div>
+                ) : (intelPoint.tags?.length > 0 || tagsAreEditable) && (
+                    <div className="review-tags-row">
+                        <div className="review-tags">
+                            { intelPoint.tags?.length > 0
+                                ? intelPoint.tags.map((tag) => (
+                                    <span key={tag} className="review-tag">{tag}</span>
+                                ))
+                                : <span className="review-tags-empty">No tags</span>
+                            }
+                        </div>
+                        { tagsAreEditable && (
+                            <button className="review-tags-edit" type="button" onClick={onTagsEditClick} aria-label="Edit tags">
+                                <Pencil size={14} aria-hidden="true" />
+                            </button>
+                        )}
                     </div>
                 )}
 

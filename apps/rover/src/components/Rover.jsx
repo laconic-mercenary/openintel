@@ -552,6 +552,31 @@ export default function Rover() {
         setPlannedDialogState({ mode: "edit", intelPoint });
     };
 
+    const onEditIntelTags = async (intelPoint, tags) => {
+        const key = cryptoKeyRef.current;
+        setCloudSaveMessage("Updating Tags...");
+        try {
+            const { encryptedPayload: currentEncryptedPayload } = await getIntelDetails(intelPoint);
+            const currentPayload = JSON.parse(await decryptText(key, currentEncryptedPayload));
+            const encryptedPayload = await encryptText(key, JSON.stringify({
+                ...currentPayload,
+                tags: tags ?? [],
+            }));
+            await updateIntel({ geohash: intelPoint.geohash, key: intelPoint.key, encryptedPayload });
+            setIntelPoints((prev) => prev.map((p) => {
+                if (p.key !== intelPoint.key) return p;
+                return { ...p, tags: tags ?? [] };
+            }));
+            showSuccess("Tags updated.");
+        } catch (error) {
+            console.error("failed to update intel tags:", error);
+            setError("Failed to update tags — please try again.", error);
+            throw error;
+        } finally {
+            setCloudSaveMessage(null);
+        }
+    };
+
     const onSavePlannedIntel = async (description, tags) => {
         const key = cryptoKeyRef.current;
         const state = plannedDialogState;
@@ -771,9 +796,10 @@ export default function Rover() {
                             onDiscardIntel={onDiscardIntel}
                             onDeleteConfirmedIntel={onDeleteConfirmedIntel}
                             onEditPlannedIntel={onEditPlannedIntel}
-                            onExportIntel={setExportIntelPoint}
+                            onEditIntelTags={onEditIntelTags}
                             onNavigateTo={onNavigateTo}
                             onViewOnMap={onViewOnMap}
+                            tagSuggestions={allTags}
                             filterChips={filterChips}
                             onFilterChipsChange={setFilterChips}
                             pinnedKeys={pinnedKeys}
@@ -816,9 +842,10 @@ export default function Rover() {
                     onError={(msg) => setError(msg, null)}
                     onAddPlannedIntel={onAddPlannedIntel}
                     onEditPlannedIntel={onEditPlannedIntel}
-                    onExportIntel={setExportIntelPoint}
+                    onEditIntelTags={onEditIntelTags}
                     onNavigateTo={onNavigateTo}
                     onViewOnMap={onViewOnMap}
+                    tagSuggestions={allTags}
                     zoomToPositionSignal={zoomToPositionSignal}
                     zoomToNewIntelSignal={zoomToNewIntelSignal}
                     flyToLocationSignal={flyToLocationSignal}
