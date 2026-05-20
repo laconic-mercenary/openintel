@@ -15,7 +15,7 @@ function meetsAll(password) {
     return requirements.every((r) => r.test(password));
 }
 
-export default function EncryptionSetup({ salt, onKeyReady, keyLoadFailed = false, region = null }) {
+export default function EncryptionSetup({ salt, onKeyReady, keyLoadFailed = false }) {
     const [password, setPassword] = useState('');
     const [persist, setPersist] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function EncryptionSetup({ salt, onKeyReady, keyLoadFailed = fals
         try {
             const key = await deriveKey(password, salt);
             if (!keyLoadFailed) {
-                await saveKey(key, persist, region);
+                await saveKey(key, persist);
             }
             onKeyReady(key);
         } catch (err) {

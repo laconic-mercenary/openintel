@@ -1,8 +1,5 @@
 // consts and globals
 
-import { lsKeyRegion, storageGetString } from "./storage";
-
-const regionHeader = "X-Intel-Region";
 const requestTimeoutMs = 45000;
 const requestMaxRetries = 3;
 // delay between retries gives the network stack (especially iOS) time to recover before the next attempt
@@ -12,14 +9,9 @@ const imageUploadMaxRetries = 2;
 
 // functions
 
-export const getRegionHeaders = () => {
-    const region = storageGetString(lsKeyRegion, null);
-    return region ? { [regionHeader]: region } : {};
-};
-
 const fetchWithTimeout = async (url, options = {}, onAttempt) => {
     let lastErr;
-    const headers = { ...getRegionHeaders(), ...(options.headers ?? {}) };
+    const headers = { ...(options.headers ?? {}) };
     for (let attempt = 0; attempt < requestMaxRetries; attempt++) {
         if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
         onAttempt?.(attempt);

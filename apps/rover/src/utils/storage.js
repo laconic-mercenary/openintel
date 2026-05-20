@@ -5,10 +5,6 @@ const lsKeyRecentTags = "recentTags";
 const lsKeyShowFiltersOnMap = "showFiltersOnMap";
 const lsKeyPinnedItems = "pinnedItems";
 const lsKeyUseCurrentPosition = "useCurrentPosition";
-const lsKeyRegion = "region";
-
-const regionJpe = "jpe";
-const regionEus = "eus";
 
 // Functions
 
@@ -49,7 +45,6 @@ const storageSetJson = (key, value) => {
 };
 
 export { storageGetString, storageSetString };
-export { lsKeyRegion, regionJpe, regionEus };
 export {
     lsKeySaveToCloudDefault,
     lsKeyRecentTags,

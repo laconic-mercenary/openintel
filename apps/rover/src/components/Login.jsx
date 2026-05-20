@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getRegionHeaders } from "../utils/api";
 import "./Login.css";
 
 export default function Login() {
@@ -57,7 +56,6 @@ export default function Login() {
                 {
                     method: "POST",
                     headers: {
-                        ...getRegionHeaders(),
                         "Content-Type": "application/x-www-form-urlencoded",
                     },
                     body: new URLSearchParams({ email }),
@@ -80,7 +78,6 @@ export default function Login() {
                 {
                     method: "POST",
                     headers: {
-                        ...getRegionHeaders(),
                         "Content-Type": "application/x-www-form-urlencoded",
                     },
                     body: new URLSearchParams({ email, code }),

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, CloudUpload, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { intelTypePlanned } from "../utils/validation";
-import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, lsKeyRegion, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson, storageGetString } from "../utils/storage";
+import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson } from "../utils/storage";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
@@ -132,7 +132,7 @@ export default function Rover() {
                     navigate(loginPath);
                     return;
                 }
-                return loadKey(storageGetString(lsKeyRegion, null))
+                return loadKey()
                     .then((key) => {
                         if (key) {
                             setCryptoKey(key);
@@ -738,7 +738,7 @@ export default function Rover() {
     const onLogout = async () => {
         try {
             await logout();
-            await clearKey(storageGetString(lsKeyRegion, null));
+            await clearKey();
             navigate(loginPath);
         } catch (error) {
             console.error('failed to logout:', error);
@@ -750,7 +750,7 @@ export default function Rover() {
 
     if (!cryptoKey) {
         if (!encSalt) return null;
-        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} keyLoadFailed={keyLoadFailed} region={storageGetString(lsKeyRegion, null)} />;
+        return <EncryptionSetup salt={encSalt} onKeyReady={setCryptoKey} keyLoadFailed={keyLoadFailed} />;
     }
 
     return (
