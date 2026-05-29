@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, CloudUpload, Layers, Loader2, Map, Navigation2, NotebookPen } from "lucide-react";
+import { Check, CloudUpload, Layers, Loader2, Map, Navigation2, NotebookPen, Search, X } from "lucide-react";
 import { chipsToFilter, applyFilter } from "../utils/filters";
 import { intelTypePlanned } from "../utils/validation";
-import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson } from "../utils/storage";
+import { lsKeySaveToCloudDefault, lsKeyRecentTags, lsKeyShowFiltersOnMap, lsKeyPinnedItems, lsKeySalammboEnabled, storageGetBoolean, storageSetBoolean, storageGetJson, storageSetJson } from "../utils/storage";
 import MapView from './MapView.jsx';
 import Geolocation from './Geolocation.jsx';
 import EncryptionSetup from "./EncryptionSetup.jsx";
@@ -12,6 +12,7 @@ import ExportIntelDialog from "./ExportIntelDialog.jsx";
 import ImportIntelDialog from "./ImportIntelDialog.jsx";
 import LocateArrow from "./LocateArrow.jsx";
 import NavArrow from "./NavArrow.jsx";
+import LocationSearch from "./LocationSearch.jsx";
 import TabBar from "./TabBar.jsx";
 import IntelListView from "./IntelListView.jsx";
 import CollectForm from "./CollectForm.jsx";
@@ -24,6 +25,9 @@ import { loadKey, clearKey } from "../utils/keystore";
 import { exportIntel, estimateFileCount } from "../utils/export";
 import { encryptText, encryptBytes, decryptText, decryptBytes } from "../utils/crypto";
 import { coordsToGeohash5, bboxToGeohash5Cells } from "../utils/geo";
+import { askSalammbo, deleteSalammboModel, loadSalammboEngine, salammboStatuses } from "../utils/salammbo";
+import salammboAvatar from "../assets/salammbo/avatar-64.png";
+import salammboMapIcon from "../assets/salammbo/map-icon-48.png";
 
 import "./Rover.css";
 
@@ -78,10 +82,19 @@ export default function Rover() {
     const [filterChips, setFilterChips] = useState([]);
     const [showFiltersOnMap, setShowFiltersOnMap] = useState(() => storageGetBoolean(lsKeyShowFiltersOnMap, false));
     const [pinnedItems, setPinnedItems] = useState(() => storageGetJson(lsKeyPinnedItems, []));
+    const [locationSearchIsOpen, setLocationSearchIsOpen] = useState(false);
+    const [salammboEnabled, setSalammboEnabled] = useState(() => storageGetBoolean(lsKeySalammboEnabled, false));
+    const [salammboStatus, setSalammboStatus] = useState(salammboStatuses.idle);
+    const [salammboProgress, setSalammboProgress] = useState(null);
+    const [salammboError, setSalammboError] = useState(null);
+    const [salammboPromptIsOpen, setSalammboPromptIsOpen] = useState(false);
+    const [salammboQuestion, setSalammboQuestion] = useState("");
+    const [salammboAnswer, setSalammboAnswer] = useState(null);
 
     // Derived
 
     const pinnedKeys = useMemo(() => new Set(pinnedItems.map((p) => p.key)), [pinnedItems]);
+    const salammboIsBusy = salammboStatus === salammboStatuses.loading || salammboStatus === salammboStatuses.processing;
 
     const allTags = useMemo(() => {
         const coords = position?.coords ?? null;
@@ -105,6 +118,7 @@ export default function Rover() {
     const viewportBoundsRef = useRef(null);
     const exportCancelledRef = useRef(false);
     const lastFetchedGeohashRef = useRef(null);
+    const salammboEnabledRef = useRef(salammboEnabled);
 
     // Effects
 
@@ -124,6 +138,13 @@ export default function Rover() {
     useEffect(() => {
         activeTabRef.current = activeTab;
     }, [activeTab]);
+
+    useEffect(() => {
+        salammboEnabledRef.current = salammboEnabled;
+        if (salammboEnabled) {
+            startSalammbo();
+        }
+    }, [salammboEnabled]);
 
     useEffect(() => {
         getSession()
@@ -204,6 +225,27 @@ export default function Rover() {
         return !(point.tags ?? []).includes(secretTag);
     };
 
+    const currentSalammboGeohash = () => {
+        if (mapCenter?.latitude != null && mapCenter?.longitude != null) {
+            return coordsToGeohash5(mapCenter.latitude, mapCenter.longitude);
+        }
+        const coords = positionRef.current?.coords;
+        if (!coords) return null;
+        return coordsToGeohash5(coords.latitude, coords.longitude);
+    };
+
+    const geohashForPoint = (point) => {
+        if (point.geohash) return point.geohash;
+        if (point.latitude == null || point.longitude == null) return null;
+        return coordsToGeohash5(point.latitude, point.longitude);
+    };
+
+    const salammboContextIntelPoints = () => {
+        const geohash = currentSalammboGeohash();
+        if (!geohash) return [];
+        return intelPoints.filter((point) => applyIntelFilter(point) && geohashForPoint(point) === geohash);
+    };
+
     const newIntelCandidate = (description, b64image, coords, tags) => {
         return {
             latitude: coords.latitude,
@@ -269,6 +311,120 @@ export default function Rover() {
         const filtered = tags.filter((t) => t !== secretTag);
         storageSetJson(lsKeyRecentTags, filtered);
         setRecentTags(filtered);
+    };
+
+    const onSalammboProgress = (progress) => {
+        setSalammboProgress(progress);
+    };
+
+    const startSalammbo = async () => {
+        if (salammboStatus === salammboStatuses.loading || salammboStatus === salammboStatuses.ready) return;
+        setSalammboStatus(salammboStatuses.loading);
+        setSalammboError(null);
+        setSalammboProgress({ progress: 0, text: "Preparing local model..." });
+        try {
+            await loadSalammboEngine(onSalammboProgress);
+            if (!salammboEnabledRef.current) return;
+            setSalammboStatus(salammboStatuses.ready);
+            setSalammboProgress({ progress: 1, text: "Salammbo ready." });
+        } catch (error) {
+            console.error("failed to load Salammbo:", error);
+            if (error?.salammboUnsupported || `${error?.message ?? ""}`.includes("maxStorageBuffersPerShaderStage")) {
+                salammboEnabledRef.current = false;
+                storageSetBoolean(lsKeySalammboEnabled, false);
+                setSalammboEnabled(false);
+                setSalammboPromptIsOpen(false);
+                setSalammboAnswer(null);
+            } else if (!salammboEnabledRef.current) {
+                return;
+            }
+            setSalammboStatus(salammboStatuses.error);
+            setSalammboProgress(null);
+            setSalammboError(error?.salammboUnsupported
+                ? error.message
+                : `${error?.message ?? ""}`.includes("maxStorageBuffersPerShaderStage")
+                    ? "Salammbo is not supported on this browser or device yet. Its WebGPU storage-buffer limit is below what the local LLM runtime needs."
+                    : error?.message || "Salammbo could not load on this browser.");
+        }
+    };
+
+    const disableSalammbo = async () => {
+        salammboEnabledRef.current = false;
+        storageSetBoolean(lsKeySalammboEnabled, false);
+        setSalammboEnabled(false);
+        setSalammboPromptIsOpen(false);
+        setSalammboAnswer(null);
+        setSalammboQuestion("");
+        setSalammboError(null);
+        setSalammboProgress(null);
+        setSalammboStatus(salammboStatuses.deleting);
+        try {
+            await deleteSalammboModel();
+            setSalammboStatus(salammboStatuses.idle);
+        } catch (error) {
+            console.error("failed to delete Salammbo model:", error);
+            setSalammboStatus(salammboStatuses.error);
+            setSalammboError(error?.message || "Salammbo was disabled, but the local model cache could not be deleted.");
+        } finally {
+            setSalammboProgress(null);
+        }
+    };
+
+    const onSalammboToggle = async (enabled) => {
+        if (!enabled) {
+            await disableSalammbo();
+            return;
+        }
+        salammboEnabledRef.current = enabled;
+        storageSetBoolean(lsKeySalammboEnabled, enabled);
+        setSalammboEnabled(enabled);
+        startSalammbo();
+    };
+
+    const onSalammboButtonClick = () => {
+        if (salammboStatus === salammboStatuses.loading || salammboStatus === salammboStatuses.processing) return;
+        if (salammboStatus === salammboStatuses.error || salammboStatus === salammboStatuses.idle) {
+            startSalammbo();
+            return;
+        }
+        setSalammboPromptIsOpen(true);
+    };
+
+    const onSalammboQuestionChange = (event) => {
+        setSalammboQuestion(event.target.value);
+    };
+
+    const onSalammboPromptClose = () => {
+        setSalammboPromptIsOpen(false);
+        setSalammboQuestion("");
+    };
+
+    const onSalammboAnswerClose = () => {
+        setSalammboAnswer(null);
+    };
+
+    const onSalammboAsk = async () => {
+        const question = salammboQuestion.trim();
+        if (!question) return;
+        setSalammboStatus(salammboStatuses.processing);
+        setSalammboError(null);
+        try {
+            const contextIntelPoints = salammboContextIntelPoints();
+            const answer = await askSalammbo({
+                question,
+                intelPoints: contextIntelPoints,
+                position,
+                onProgress: onSalammboProgress,
+            });
+            setSalammboAnswer(answer);
+            setSalammboPromptIsOpen(false);
+            setSalammboQuestion("");
+            setSalammboStatus(salammboStatuses.ready);
+        } catch (error) {
+            console.error("Salammbo query failed:", error);
+            setSalammboStatus(salammboStatuses.error);
+            setSalammboError(error?.message || "Salammbo could not answer that question.");
+        }
     };
 
     const onIntelReady = (description, b64Image, tags, saveToCloud) => {
@@ -683,6 +839,30 @@ export default function Rover() {
         }
     };
 
+    const onOpenLocationSearch = () => {
+        setLocationSearchIsOpen(true);
+    };
+
+    const onCloseLocationSearch = () => {
+        setLocationSearchIsOpen(false);
+    };
+
+    const onLocationSearchResult = (result) => {
+        setLocationSearchIsOpen(false);
+        setActiveTab('map');
+        setNavTarget(null);
+        setFlyToLocationSignal({ lat: result.lat, lon: result.lon });
+    };
+
+    const locationSearchProximity = () => {
+        if (mapCenter?.latitude != null && mapCenter?.longitude != null) {
+            return { lat: mapCenter.latitude, lon: mapCenter.longitude };
+        }
+        const coords = position?.coords;
+        if (!coords) return null;
+        return { lat: coords.latitude, lon: coords.longitude };
+    };
+
     const onStartExport = () => {
         setNavTarget(null);
         setPlacingNote(false);
@@ -823,6 +1003,11 @@ export default function Rover() {
                             onSaveToCloudDefaultChange={onSaveToCloudDefaultChange}
                             showFiltersOnMap={showFiltersOnMap}
                             onShowFiltersOnMapChange={(val) => { setShowFiltersOnMap(val); storageSetBoolean(lsKeyShowFiltersOnMap, val); }}
+                            salammboEnabled={salammboEnabled}
+                            salammboStatus={salammboStatus}
+                            salammboProgress={salammboProgress}
+                            salammboError={salammboError}
+                            onSalammboToggle={onSalammboToggle}
                             onLogout={onLogout}
                             onExportAll={onStartExport}
                             onImportIntel={() => setImportIsOpen(true)} />
@@ -870,6 +1055,20 @@ export default function Rover() {
             )}
             { activeTab === 'map' && (
                 <>
+                    { salammboEnabled && (
+                        <button
+                            className={`rover-salammbo-btn${salammboStatus === salammboStatuses.error ? " is-error" : ""}`}
+                            onClick={onSalammboButtonClick}
+                            disabled={salammboIsBusy}
+                            aria-label="Ask Salammbo">
+                            { salammboIsBusy
+                                ? <Loader2 size={24} className="rover-save-all-spinning" aria-hidden="true" />
+                                : <img className="rover-salammbo-avatar rover-salammbo-avatar--button" src={salammboMapIcon} alt="" aria-hidden="true" /> }
+                        </button>
+                    )}
+                    <button className="rover-search-location-btn" onClick={onOpenLocationSearch} aria-label="Search location">
+                        <Search size={24} aria-hidden="true" />
+                    </button>
                     <button
                         className={`rover-add-note-btn${placingNote ? " is-active" : ""}`}
                         onClick={() => setPlacingNote((prev) => !prev)}
@@ -883,6 +1082,47 @@ export default function Rover() {
                         <Navigation2 size={24} aria-hidden="true" />
                     </button>
                 </>
+            )}
+            { activeTab === 'map' && salammboEnabled && salammboPromptIsOpen && (
+                <div className="rover-salammbo-panel">
+                    <textarea
+                        className="rover-salammbo-input"
+                        value={salammboQuestion}
+                        onChange={onSalammboQuestionChange}
+                        placeholder="Ask Salammbo about loaded intel"
+                        rows={3} />
+                    <div className="rover-salammbo-actions">
+                        <button className="rover-salammbo-action rover-salammbo-action--cancel" onClick={onSalammboPromptClose} aria-label="Close Salammbo">
+                            <X size={16} aria-hidden="true" />
+                        </button>
+                        <button className="rover-salammbo-action rover-salammbo-action--send" onClick={onSalammboAsk} disabled={!salammboQuestion.trim() || salammboIsBusy} aria-label="Ask Salammbo">
+                            { salammboStatus === salammboStatuses.processing
+                                ? <Loader2 size={16} className="rover-save-all-spinning" aria-hidden="true" />
+                                : <>
+                                    <Check size={14} aria-hidden="true" />
+                                    <span>OK</span>
+                                </> }
+                        </button>
+                    </div>
+                    { salammboError && (
+                        <p className="rover-salammbo-error">{salammboError}</p>
+                    )}
+                </div>
+            )}
+            { activeTab === 'map' && salammboEnabled && salammboAnswer && !salammboPromptIsOpen && (
+                <div className="rover-salammbo-bubble">
+                    <img className="rover-salammbo-avatar rover-salammbo-avatar--bubble" src={salammboAvatar} alt="" aria-hidden="true" />
+                    <button className="rover-salammbo-bubble-close" onClick={onSalammboAnswerClose} aria-label="Close Salammbo response">
+                        <X size={14} aria-hidden="true" />
+                    </button>
+                    <p>{salammboAnswer}</p>
+                </div>
+            )}
+            { locationSearchIsOpen && (
+                <LocationSearch
+                    onResult={onLocationSearchResult}
+                    onCancel={onCloseLocationSearch}
+                    proximity={locationSearchProximity()} />
             )}
             { activeTab === 'map' && placingNote && (
                 <div className="rover-placing-note-banner">

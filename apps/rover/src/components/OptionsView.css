@@ -101,6 +101,51 @@
     color: #8cbf84;
 }
 
+.options-toggle:disabled {
+    cursor: default;
+    opacity: 0.72;
+}
+
+.options-toggle-spinner {
+    animation: options-spin 1s linear infinite;
+}
+
+.options-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.25rem 0 0.35rem;
+}
+
+.options-progress-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(200, 170, 100, 0.14);
+    overflow: hidden;
+}
+
+.options-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #8cbf84;
+    transition: width 0.2s ease;
+}
+
+.options-progress-text,
+.options-error-text {
+    margin: 0;
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+
+.options-progress-text {
+    color: rgba(196, 168, 122, 0.5);
+}
+
+.options-error-text {
+    color: rgba(220, 100, 90, 0.85);
+}
+
 .options-action-btn {
     display: flex;
     align-items: center;
@@ -152,4 +197,9 @@
 
 .options-link:hover {
     color: rgba(196, 168, 122, 0.85);
+}
+
+@keyframes options-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
 }

@@ -1,7 +1,34 @@
-import { Cloud, CloudOff, FileDown, FileUp, Locate, LocateOff, LogOut, Map } from "lucide-react";
+import { Cloud, CloudOff, FileDown, FileUp, Loader2, Locate, LocateOff, LogOut, Map, Sparkles } from "lucide-react";
+import { salammboStatuses } from "../utils/salammbo";
 import "./OptionsView.css";
 
-export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, showFiltersOnMap, onShowFiltersOnMapChange, onLogout, onExportAll, onImportIntel }) {
+export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle, saveToCloudDefault, onSaveToCloudDefaultChange, showFiltersOnMap, onShowFiltersOnMapChange, salammboEnabled, salammboStatus, salammboProgress, salammboError, onSalammboToggle, onLogout, onExportAll, onImportIntel }) {
+
+    // Consts
+
+    const salammboIsLoading = salammboStatus === salammboStatuses.loading;
+    const salammboIsDeleting = salammboStatus === salammboStatuses.deleting;
+    const salammboProgressPct = Math.max(0, Math.min(100, Math.round((salammboProgress?.progress ?? 0) * 100)));
+    const salammboToggleIsDisabled = salammboIsDeleting;
+    const salammboStatusLabel = salammboIsDeleting
+        ? "Clearing"
+        : salammboEnabled
+            ? "On"
+            : "Off";
+
+    // Methods
+
+    const handleShowFiltersToggle = () => {
+        onShowFiltersOnMapChange?.(!showFiltersOnMap);
+    };
+
+    const handleSaveToCloudToggle = () => {
+        onSaveToCloudDefaultChange?.(!saveToCloudDefault);
+    };
+
+    const handleSalammboToggle = () => {
+        onSalammboToggle?.(!salammboEnabled);
+    };
 
     // DOM
 
@@ -48,7 +75,7 @@ export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle,
                     <span className="options-row-label">Show Intel on map</span>
                     <button
                         className={`options-toggle${showFiltersOnMap ? " is-on" : ""}`}
-                        onClick={() => onShowFiltersOnMapChange?.(!showFiltersOnMap)}
+                        onClick={handleShowFiltersToggle}
                         aria-label="Toggle show filters on map">
                         <Map size={14} aria-hidden="true" />
                         <span>{showFiltersOnMap ? "On" : "Off"}</span>
@@ -59,7 +86,7 @@ export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle,
                     <span className="options-row-label">Save to Cloud</span>
                     <button
                         className={`options-toggle${saveToCloudDefault ? " is-on" : ""}`}
-                        onClick={() => onSaveToCloudDefaultChange?.(!saveToCloudDefault)}
+                        onClick={handleSaveToCloudToggle}
                         aria-label="Toggle save to cloud default">
                         { saveToCloudDefault
                             ? <Cloud size={14} aria-hidden="true" />
@@ -67,6 +94,38 @@ export default function OptionsView({ geolocationIsEnabled, onGeolocationToggle,
                         <span>{saveToCloudDefault ? "On" : "Off"}</span>
                     </button>
                 </div>
+
+            </section>
+
+            <section className="options-section">
+                <h3 className="options-section-title">AI</h3>
+
+                <div className="options-row">
+                    <span className="options-row-label">Enable Salammbo</span>
+                    <button
+                        className={`options-toggle${salammboEnabled ? " is-on" : ""}`}
+                        onClick={handleSalammboToggle}
+                        disabled={salammboToggleIsDisabled}
+                        aria-label="Toggle Salammbo">
+                        { salammboIsLoading || salammboIsDeleting
+                            ? <Loader2 size={14} className="options-toggle-spinner" aria-hidden="true" />
+                            : <Sparkles size={14} aria-hidden="true" /> }
+                        <span>{salammboStatusLabel}</span>
+                    </button>
+                </div>
+
+                { salammboIsLoading && (
+                    <div className="options-progress">
+                        <div className="options-progress-track">
+                            <div className="options-progress-fill" style={{ width: `${salammboProgressPct}%` }} />
+                        </div>
+                        <p className="options-progress-text">{salammboProgress?.text || "Downloading local model..."}</p>
+                    </div>
+                )}
+
+                { salammboError && (
+                    <p className="options-error-text">{salammboError}</p>
+                )}
             </section>
 
             <section className="options-section">

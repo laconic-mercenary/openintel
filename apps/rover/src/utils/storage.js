@@ -5,6 +5,7 @@ const lsKeyRecentTags = "recentTags";
 const lsKeyShowFiltersOnMap = "showFiltersOnMap";
 const lsKeyPinnedItems = "pinnedItems";
 const lsKeyUseCurrentPosition = "useCurrentPosition";
+const lsKeySalammboEnabled = "salammboEnabled";
 
 // Functions
 
@@ -51,6 +52,7 @@ export {
     lsKeyShowFiltersOnMap,
     lsKeyPinnedItems,
     lsKeyUseCurrentPosition,
+    lsKeySalammboEnabled,
     storageGetBoolean,
     storageSetBoolean,
     storageGetJson,

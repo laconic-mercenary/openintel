@@ -1,23 +1,37 @@
 import { useState, useEffect, useRef } from "react";
 import "./LocationSearch.css";
 
-// consts and globals
+// Consts
 
 const debounceMs = 600;
-const nominatimLimit = 5;
+const resultLimit = 6;
+const minQueryLength = 2;
 
-// functions
+// Functions
 
-const fetchSuggestions = async (query) => {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${nominatimLimit}`;
-    const response = await fetch(url, { headers: { "Accept": "application/json" } });
-    if (!response.ok) throw new Error(`nominatim returned ${response.status}`);
-    return response.json();
+const resultLabel = (feature) => {
+    return feature.place_name || feature.place_name_ja || feature.text || "Unnamed location";
 };
 
-// methods
+const fetchSuggestions = async (query, proximity) => {
+    const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
+    if (!apiKey) throw new Error("MapTiler API key is not configured.");
+    const params = new URLSearchParams({
+        key: apiKey,
+        limit: String(resultLimit),
+        language: "ja,en",
+    });
+    if (proximity?.lon != null && proximity?.lat != null) {
+        params.set("proximity", `${proximity.lon},${proximity.lat}`);
+    }
+    const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?${params.toString()}`;
+    const response = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(`geocoding returned ${response.status}`);
+    const data = await response.json();
+    return data.features ?? [];
+};
 
-export default function LocationSearch({ onResult, onCancel }) {
+export default function LocationSearch({ onResult, onCancel, proximity }) {
 
     // State
 
@@ -30,16 +44,29 @@ export default function LocationSearch({ onResult, onCancel }) {
 
     const onResultRef = useRef(onResult);
     const onCancelRef = useRef(onCancel);
+    const proximityRef = useRef(proximity);
     const debounceTimer = useRef(null);
 
     // Effects
+
+    useEffect(() => {
+        onResultRef.current = onResult;
+    }, [onResult]);
+
+    useEffect(() => {
+        onCancelRef.current = onCancel;
+    }, [onCancel]);
+
+    useEffect(() => {
+        proximityRef.current = proximity;
+    }, [proximity]);
 
     useEffect(() => {
         const trimmed = query.trim();
         setResults([]);
         setError(null);
 
-        if (!trimmed) {
+        if (trimmed.length < minQueryLength) {
             setLoading(false);
             return;
         }
@@ -48,12 +75,12 @@ export default function LocationSearch({ onResult, onCancel }) {
         clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(async () => {
             try {
-                const data = await fetchSuggestions(trimmed);
+                const data = await fetchSuggestions(trimmed, proximityRef.current);
                 setResults(data);
                 if (!data.length) setError("No results found.");
             } catch (fetchErr) {
                 console.error(fetchErr);
-                setError("Search failed. Check your connection.");
+                setError("Search failed. Check your connection or map key.");
             } finally {
                 setLoading(false);
             }
@@ -63,7 +90,12 @@ export default function LocationSearch({ onResult, onCancel }) {
     }, [query]);
 
     const onSelect = (result) => {
-        onResultRef.current?.({ lat: parseFloat(result.lat), lon: parseFloat(result.lon) });
+        const [lon, lat] = result.center ?? result.geometry?.coordinates ?? [];
+        if (lat == null || lon == null) {
+            setError("Selected result has no coordinates.");
+            return;
+        }
+        onResultRef.current?.({ lat, lon, label: resultLabel(result) });
     };
 
     // DOM
@@ -86,9 +118,9 @@ export default function LocationSearch({ onResult, onCancel }) {
                 {results.length > 0 && (
                     <ul className="loc-search-results">
                         {results.map((r) => (
-                            <li key={r.place_id}>
+                            <li key={r.id}>
                                 <button className="loc-search-result-btn" onClick={() => onSelect(r)}>
-                                    {r.display_name}
+                                    {resultLabel(r)}
                                 </button>
                             </li>
                         ))}

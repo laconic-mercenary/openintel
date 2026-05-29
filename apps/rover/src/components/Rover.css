@@ -152,7 +152,9 @@
 
 .rover-locate-btn,
 .rover-satellite-btn,
-.rover-add-note-btn {
+.rover-add-note-btn,
+.rover-search-location-btn,
+.rover-salammbo-btn {
     position: fixed;
     right: 1rem;
     z-index: 200;
@@ -182,6 +184,40 @@
 .rover-add-note-btn {
     bottom: calc(4.5rem + (3.5rem + 0.6rem) * 2);
     color: #e07070;
+}
+
+.rover-salammbo-btn {
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 4);
+    border: 1px solid rgba(180, 105, 42, 0.55);
+    background: rgba(48, 25, 13, 0.78);
+    color: #5d461d;
+    overflow: hidden;
+}
+
+.rover-search-location-btn {
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 3);
+    color: #d9b46a;
+}
+
+.rover-salammbo-btn:disabled {
+    cursor: default;
+    opacity: 0.85;
+}
+
+.rover-salammbo-btn.is-error {
+    color: #e07070;
+}
+
+.rover-salammbo-avatar {
+    display: block;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.rover-salammbo-avatar--button {
+    width: 3rem;
+    height: 3rem;
+    object-fit: contain;
 }
 
 .rover-add-note-btn.is-active {
@@ -217,6 +253,129 @@
     align-items: center;
     gap: 0.15rem;
     white-space: nowrap;
+}
+
+.rover-salammbo-panel,
+.rover-salammbo-bubble {
+    position: fixed;
+    left: 1rem;
+    bottom: 4.5rem;
+    z-index: 230;
+    width: min(23rem, calc(100vw - 6rem));
+    border: 1px solid rgba(200, 170, 100, 0.16);
+    border-radius: 0.5rem;
+    background: rgba(13, 13, 13, 0.92);
+    backdrop-filter: blur(8px);
+    color: rgba(232, 213, 176, 0.86);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.rover-salammbo-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.6rem;
+}
+
+.rover-salammbo-input {
+    width: 100%;
+    min-height: 4.5rem;
+    resize: vertical;
+    border: 1px solid rgba(200, 170, 100, 0.18);
+    border-radius: 0.4rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.9);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.35;
+    padding: 0.55rem;
+    outline: none;
+}
+
+.rover-salammbo-input:focus {
+    border-color: rgba(140, 191, 132, 0.55);
+}
+
+.rover-salammbo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.rover-salammbo-action {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.4rem;
+    border: none;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+.rover-salammbo-action:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.rover-salammbo-action--cancel {
+    background: rgba(160, 52, 44, 0.22);
+    color: #e07070;
+}
+
+.rover-salammbo-action--send {
+    width: 3rem;
+    display: flex;
+    gap: 0.2rem;
+    background: rgba(62, 125, 190, 0.24);
+    color: #60a5fa;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.rover-salammbo-error {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: #e07070;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+
+.rover-salammbo-bubble {
+    min-height: 4.6rem;
+    padding: 0.8rem 2.2rem 0.8rem 4.5rem;
+}
+
+.rover-salammbo-bubble p {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.rover-salammbo-avatar--bubble {
+    position: absolute;
+    left: 0.65rem;
+    top: 0.65rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 0.55rem;
+}
+
+.rover-salammbo-bubble-close {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: none;
+    border-radius: 0.35rem;
+    background: rgba(160, 52, 44, 0.18);
+    color: #e07070;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    cursor: pointer;
 }
 
 .rover-placing-note-primary {
@@ -438,7 +597,7 @@
 .rover-nav-cancel-btn {
     position: fixed;
     right: 1rem;
-    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 4);
+    bottom: calc(4.5rem + (3.5rem + 0.6rem) * 5);
     z-index: 200;
     width: 3.5rem;
     height: 3.5rem;
@@ -461,8 +620,13 @@
 
 .rover-locate-btn:hover,
 .rover-satellite-btn:hover,
-.rover-add-note-btn:hover {
+.rover-add-note-btn:hover,
+.rover-search-location-btn:hover {
     background: rgba(30, 30, 30, 0.85);
+}
+
+.rover-salammbo-btn:hover {
+    background: rgba(68, 34, 17, 0.86);
 }
 
 .geoloc-toggle {

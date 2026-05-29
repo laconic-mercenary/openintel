@@ -78,7 +78,7 @@ export default function EncryptionSetup({ salt, onKeyReady, keyLoadFailed = fals
                                 checked={persist}
                                 onChange={(e) => setPersist(e.target.checked)}
                             />
-                            Remember on this device
+                            Remember encryption password on this device
                         </label>
                     )}
                     {error && <p className="enc-setup-error">{error}</p>}

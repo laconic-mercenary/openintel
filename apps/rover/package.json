@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.83",
     "lucide-react": "^0.575.0",
     "maplibre-gl": "^5.17.0",
     "react": "^19.2.0",

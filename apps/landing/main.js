@@ -6,10 +6,10 @@ const fadeDuration = 1200;
 const panLimit = Math.min(Math.min(window.innerWidth, window.innerHeight) * 0.22, 160);
 
 const maps = [
-    { url: 'maps/map1.jpg', startX:  panLimit, startY: -panLimit, dir: { x: -1,   y:  1   } },
-    { url: 'maps/map2.jpg', startX: -panLimit, startY:  panLimit, dir: { x:  1,   y: -1   } },
-    { url: 'maps/map3.jpg', startX: -panLimit, startY:         0, dir: { x:  1,   y:  0.1 } },
-    { url: 'maps/map4.jpg', startX:         0, startY: -panLimit, dir: { x:  0,   y:  1   } },
+    { url: 'maps/map1.jpg', startX:  panLimit, startY: -panLimit, dir: { x: -1,   y:  1   }, bgPosition: 'center'    },
+    { url: 'maps/map2.jpg', startX:  panLimit, startY:  panLimit * 0.5, dir: { x: -1, y: -0.5 }, bgPosition: '65% center' },
+    { url: 'maps/map3.jpg', startX: -panLimit, startY:         0, dir: { x:  1,   y:  0.1 }, bgPosition: 'center'    },
+    { url: 'maps/map4.jpg', startX:         0, startY: -panLimit, dir: { x:  0,   y:  1   }, bgPosition: 'center'    },
 ];
 
 // state
@@ -47,16 +47,17 @@ function preloadImage(url) {
     img.src = url;
 }
 
-function setLayerMap(layer, url) {
-    layer.style.backgroundImage = `url('${url}')`;
+function setLayerMap(layer, map) {
+    layer.style.backgroundImage = `url('${map.url}')`;
+    layer.style.backgroundPosition = map.bgPosition;
 }
 
 function startPan() {
     const first = maps[0];
     const second = maps[1];
 
-    setLayerMap(layerA, first.url);
-    setLayerMap(layerB, second.url);
+    setLayerMap(layerA, first);
+    setLayerMap(layerB, second);
     preloadImage(maps[2].url);
 
     panX = first.startX;
@@ -96,7 +97,7 @@ function switchMap() {
     const outgoing = currentLayer();
 
     const incoming = nextLayer();
-    setLayerMap(incoming, nextMap.url);
+    setLayerMap(incoming, nextMap);
     applyPan(incoming, nextMap.startX, nextMap.startY);
     incoming.classList.add('active');
 
