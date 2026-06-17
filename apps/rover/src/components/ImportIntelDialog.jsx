@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { Upload, TriangleAlert } from "lucide-react";
 import { decryptText, encryptText, encryptBytes } from "../utils/crypto";
-import { storeIntel, uploadIntelImage, addComment } from "../utils/api";
+import { storeIntel, uploadIntelImage, addComment, updateIntel, getImageUploadUrl } from "../utils/api";
 import { coordsToGeohash5 } from "../utils/geo";
 import { intelTypeConfirmed, intelTypeUnconfirmed, intelTypePlanned, validateDescription, validateImage, validateTags, validateCoords } from "../utils/validation";
 import "./ImportIntelDialog.css";
@@ -20,12 +20,15 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [massProgress, setMassProgress] = useState(null);
+    const [conflictPending, setConflictPending] = useState(null);
+    const [applyToAll, setApplyToAll] = useState(false);
 
     // References
 
     const fileInputRef = useRef(null);
     const onImportRef = useRef(onImport);
     const onCancelRef = useRef(onCancel);
+    const bulkChoiceRef = useRef(null);
 
     // Methods
 
@@ -68,6 +71,17 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
         };
     };
 
+    const askConflict = () => {
+        if (bulkChoiceRef.current !== null) return Promise.resolve(bulkChoiceRef.current);
+        return new Promise((resolve) => setConflictPending({ resolve }));
+    };
+
+    const onConflictChoice = (choice) => {
+        if (applyToAll) bulkChoiceRef.current = choice;
+        conflictPending.resolve(choice);
+        setConflictPending(null);
+    };
+
     const importMassItem = async (item, existingTimestamps) => {
         if (existingTimestamps.has(item.timestamp)) return 'skipped';
 
@@ -83,28 +97,42 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
         });
         const encryptedPayload = await encryptText(cryptoKey, payload);
 
-        const { key: storedRowKey, presignedPutUrl } = await storeIntel({
+        const { key: storedRowKey, presignedPutUrl, alreadyExists } = await storeIntel({
             geohash,
             encryptedPayload,
             hasImage: !!item.b64image,
             timestamp: item.timestamp,
         });
 
-        if (item.b64image && presignedPutUrl) {
-            const binary = atob(item.b64image);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const encrypted = await encryptBytes(cryptoKey, bytes.buffer);
-            await uploadIntelImage(presignedPutUrl, encrypted);
-        }
+        if (alreadyExists) {
+            const choice = await askConflict();
+            if (choice === 'cancel') return 'skipped';
+            await updateIntel({ geohash, key: storedRowKey, encryptedPayload });
+            if (item.b64image) {
+                const uploadUrl = await getImageUploadUrl({ geohash, key: storedRowKey });
+                const binary = atob(item.b64image);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const encrypted = await encryptBytes(cryptoKey, bytes.buffer);
+                await uploadIntelImage(uploadUrl, encrypted);
+            }
+        } else {
+            if (item.b64image && presignedPutUrl) {
+                const binary = atob(item.b64image);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const encrypted = await encryptBytes(cryptoKey, bytes.buffer);
+                await uploadIntelImage(presignedPutUrl, encrypted);
+            }
 
-        if (item.comments?.length > 0) {
-            for (const comment of item.comments) {
-                try {
-                    const encryptedText = await encryptText(cryptoKey, comment.text);
-                    await addComment({ key: storedRowKey, geohash }, encryptedText);
-                } catch (commentErr) {
-                    console.warn('import: failed to post comment', comment.rowKey, commentErr);
+            if (item.comments?.length > 0) {
+                for (const comment of item.comments) {
+                    try {
+                        const encryptedText = await encryptText(cryptoKey, comment.text);
+                        await addComment({ key: storedRowKey, geohash }, encryptedText);
+                    } catch (commentErr) {
+                        console.warn('import: failed to post comment', comment.rowKey, commentErr);
+                    }
                 }
             }
         }
@@ -134,6 +162,7 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
             }
         }
 
+        bulkChoiceRef.current = null;
         const existingTimestamps = new Set((intelPoints ?? []).map((p) => p.timestamp));
         let imported = 0, skipped = 0, failed = 0, processed = 0;
         setMassProgress({ processed: 0, total: totalItems, imported: 0, skipped: 0, failed: 0 });
@@ -227,7 +256,22 @@ export default function ImportIntelDialog({ onImport, onMassImportComplete, cryp
                 <button className="intel-cancel" onClick={() => onCancelRef.current?.()}>X</button>
                 <h2 className="intel-title">Import Intel</h2>
 
-                { massProgress ? (
+                { conflictPending ? (
+                    <>
+                        <p className="import-intel-conflict-title">
+                            <TriangleAlert size={15} aria-hidden="true" />
+                            Intel point already exists with a different password
+                        </p>
+                        <div className="import-intel-conflict-actions">
+                            <button className="import-intel-conflict-cancel" onClick={() => onConflictChoice('cancel')}>Cancel</button>
+                            <button className="import-intel-conflict-replace" onClick={() => onConflictChoice('replace')}>Replace</button>
+                        </div>
+                        <label className="import-intel-conflict-apply-all">
+                            <input type="checkbox" checked={applyToAll} onChange={(e) => setApplyToAll(e.target.checked)} />
+                            Do this for all intel points
+                        </label>
+                    </>
+                ) : massProgress ? (
                     <>
                         <p className="import-intel-body">Importing {massProgress.processed} of {massProgress.total} items…</p>
                         <div className="import-intel-progress-track">

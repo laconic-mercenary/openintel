@@ -49,6 +49,10 @@ export const storeIntel = async (intelPoint, onAttempt) => {
             timestamp: intelPoint.timestamp,
         }),
     }, onAttempt);
+    if (response.status === 409) {
+        const data = await response.json();
+        return { key: data.key, presignedPutUrl: null, alreadyExists: true };
+    }
     if (!response.ok) {
         throw new Error(`failed to store intel: ${response.status}`);
     }

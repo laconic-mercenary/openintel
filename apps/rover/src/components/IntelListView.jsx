@@ -148,7 +148,7 @@ export default function IntelListView({ intelPoints, position, mapCenter, crypto
                                 { !isUnconfirmed && !isPlanned && <CircleCheck size={18} className="intel-type-icon intel-type-confirmed" /> }
                             </span>
                             <span className="intel-list-row-body">
-                                <span className="intel-list-row-desc">
+                                <span className="intel-list-row-desc" data-tooltip={point.description?.trim() || undefined}>
                                     {point.description?.trim() || (hasPhoto ? "(image only)" : "—")}
                                 </span>
                                 { (dist || formatAge(point)) && (

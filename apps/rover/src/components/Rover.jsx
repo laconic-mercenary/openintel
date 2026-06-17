@@ -225,25 +225,8 @@ export default function Rover() {
         return !(point.tags ?? []).includes(secretTag);
     };
 
-    const currentSalammboGeohash = () => {
-        if (mapCenter?.latitude != null && mapCenter?.longitude != null) {
-            return coordsToGeohash5(mapCenter.latitude, mapCenter.longitude);
-        }
-        const coords = positionRef.current?.coords;
-        if (!coords) return null;
-        return coordsToGeohash5(coords.latitude, coords.longitude);
-    };
-
-    const geohashForPoint = (point) => {
-        if (point.geohash) return point.geohash;
-        if (point.latitude == null || point.longitude == null) return null;
-        return coordsToGeohash5(point.latitude, point.longitude);
-    };
-
     const salammboContextIntelPoints = () => {
-        const geohash = currentSalammboGeohash();
-        if (!geohash) return [];
-        return intelPoints.filter((point) => applyIntelFilter(point) && geohashForPoint(point) === geohash);
+        return intelPoints.filter(applyIntelFilter);
     };
 
     const newIntelCandidate = (description, b64image, coords, tags) => {

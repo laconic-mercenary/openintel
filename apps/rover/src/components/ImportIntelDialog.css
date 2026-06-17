@@ -67,3 +67,57 @@
     font-size: 0.78rem;
     color: rgba(196, 168, 122, 0.5);
 }
+
+.import-intel-conflict-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fbbf24;
+}
+
+.import-intel-conflict-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.import-intel-conflict-cancel {
+    background: rgba(100, 100, 100, 0.15);
+    border: 1px solid rgba(180, 180, 180, 0.3);
+    border-radius: 4px;
+    color: #ccc;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.import-intel-conflict-cancel:hover {
+    background: rgba(100, 100, 100, 0.28);
+}
+
+.import-intel-conflict-replace {
+    background: #1a3a5c;
+    border: 1px solid #4a8fdd;
+    border-radius: 4px;
+    color: #93c5fd;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.import-intel-conflict-replace:hover {
+    background: #1e4570;
+}
+
+.import-intel-conflict-apply-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #aaa;
+    cursor: pointer;
+    user-select: none;
+}

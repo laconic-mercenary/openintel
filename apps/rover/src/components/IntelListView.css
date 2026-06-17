@@ -201,11 +201,32 @@
 }
 
 .intel-list-row-desc {
+    position: relative;
     font-size: 0.85rem;
     color: rgba(232, 213, 176, 0.85);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.intel-list-row-desc[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: 20;
+    margin-top: 0.35rem;
+    max-width: 16rem;
+    white-space: normal;
+    background: rgba(20, 18, 14, 0.95);
+    border: 1px solid rgba(200, 170, 100, 0.25);
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: rgba(232, 213, 176, 0.9);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
 }
 
 .intel-list-row-meta {

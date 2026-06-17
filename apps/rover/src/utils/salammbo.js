@@ -2,7 +2,7 @@ import { calculateBearing, calculateDistanceKm } from "./geo";
 
 // Consts
 
-const salammboModel = "SmolLM2-360M-Instruct-q4f32_1-MLC";
+const salammboModel = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
 const requiredMaxStorageBuffersPerShaderStage = 10;
 const salammboStatuses = Object.freeze({
     idle: "idle",
@@ -234,7 +234,7 @@ const askSalammbo = async ({ question, intelPoints, position, onProgress }) => {
             },
         ],
         temperature: 0,
-        max_tokens: 180,
+        max_tokens: 350,
     });
     return reply?.choices?.[0]?.message?.content?.trim() || "Salammbo did not return a response.";
 };
