@@ -89,7 +89,7 @@ func (repository *AzureTableAuthTokenRepository) DeleteAuthToken(authToken strin
 		IfMatch: &etag,
 	})
 	if deleteErr != nil {
-		log.Error().Err(deleteErr).Str("authToken", authToken).Msg("error deleting auth token entity from table")
+		log.Error().Err(deleteErr).Msg("error deleting auth token entity from table")
 		return deleteErr
 	}
 	return nil
@@ -180,7 +180,7 @@ func (repository *AzureTableAuthTokenRepository) updateEntry(authToken string, e
 		UpdateMode: aztables.UpdateModeMerge,
 	})
 	if updateErr != nil {
-		log.Error().Err(updateErr).Str("authToken", authToken).Msg("error updating auth token entity in table")
+		log.Error().Err(updateErr).Msg("error updating auth token entity in table")
 		return updateErr
 	}
 	return nil
