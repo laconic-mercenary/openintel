@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	gotime "time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -149,7 +148,7 @@ func (repository *AZPrivateIntelCommentRepository) ListComments(ctx context.Cont
 	if !validation.IsValidIntelRowKey(intelRowKey) {
 		return nil, ErrCommentInvalid
 	}
-	filter := fmt.Sprintf("PartitionKey eq '%s'", intelRowKey)
+	filter := partitionKeyFilter(intelRowKey)
 	pager := repository.tableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
 		Filter: &filter,
 	})

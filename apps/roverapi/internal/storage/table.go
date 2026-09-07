@@ -201,7 +201,7 @@ func (repository *AZPrivateIntelRepository) ListPrivateIntelByGeohashes(ctx cont
 }
 
 func (repository *AZPrivateIntelRepository) queryPartition(ctx context.Context, partitionKey string) ([]PrivateIntel, error) {
-	filter := fmt.Sprintf("PartitionKey eq '%s'", partitionKey)
+	filter := partitionKeyFilter(partitionKey)
 	pager := repository.tableClient.NewListEntitiesPager(&aztables.ListEntitiesOptions{
 		Filter: &filter,
 	})
