@@ -137,10 +137,24 @@ func (service *RoverService) StorePrivateIntel(ctx context.Context, intel storag
 	}, nil
 }
 
-func (service *RoverService) GetImageUploadURL(ctx context.Context, rowKey string) (string, error) {
+// GetImageUploadURL issues a presigned PUT URL for an intel's image.
+//
+// The caller's emailHash and the geohash are required and verified against the metadata
+// row before presigning. Without that check any authenticated user holding a rowKey could
+// obtain a write URL for another user's image object and overwrite it.
+func (service *RoverService) GetImageUploadURL(ctx context.Context, emailHash, geohash, rowKey string) (string, error) {
 	log.Trace().Msg("GetImageUploadURL")
+	if validation.IsEmptyStr(emailHash) {
+		return "", ErrEmailHashRequired
+	}
+	if validation.IsEmptyStr(geohash) {
+		return "", ErrGeohashRequired
+	}
 	if validation.IsEmptyStr(rowKey) {
 		return "", ErrKeyRequired
+	}
+	if ownershipErr := service.assertIntelOwnedBy(ctx, emailHash, geohash, rowKey); ownershipErr != nil {
+		return "", ownershipErr
 	}
 	imageKey, imageKeyErr := imageKeyFromRowKey(rowKey)
 	if imageKeyErr != nil {
@@ -288,10 +302,8 @@ func (service *RoverService) AddComment(ctx context.Context, emailHash, geohash,
 	if validation.IsEmptyStr(intelRowKey) {
 		return "", ErrKeyRequired
 	}
-	partitionKey := emailHash + geohash
-	_, getErr := service.metadataRepository.GetPrivateIntelMetadata(ctx, partitionKey, intelRowKey)
-	if getErr != nil {
-		return "", getErr
+	if ownershipErr := service.assertIntelOwnedBy(ctx, emailHash, geohash, intelRowKey); ownershipErr != nil {
+		return "", ownershipErr
 	}
 	existing, listErr := service.commentRepository.ListComments(ctx, intelRowKey)
 	if listErr != nil {
@@ -309,10 +321,25 @@ func (service *RoverService) AddComment(ctx context.Context, emailHash, geohash,
 	return rowKey, nil
 }
 
-func (service *RoverService) ListComments(ctx context.Context, intelRowKey string) ([]storage.PrivateIntelComment, error) {
+// ListComments returns the comment thread for an intel.
+//
+// Comments are partitioned by intel rowKey alone, so ownership is not structural here —
+// it must be proven against the intel metadata row first. Without that check any
+// authenticated user holding a rowKey could read another user's comment ciphertext,
+// author hashes and geohash.
+func (service *RoverService) ListComments(ctx context.Context, emailHash, geohash, intelRowKey string) ([]storage.PrivateIntelComment, error) {
 	log.Trace().Msg("ListComments")
+	if validation.IsEmptyStr(emailHash) {
+		return nil, ErrEmailHashRequired
+	}
+	if validation.IsEmptyStr(geohash) {
+		return nil, ErrGeohashRequired
+	}
 	if validation.IsEmptyStr(intelRowKey) {
 		return nil, ErrKeyRequired
+	}
+	if ownershipErr := service.assertIntelOwnedBy(ctx, emailHash, geohash, intelRowKey); ownershipErr != nil {
+		return nil, ownershipErr
 	}
 	items, listErr := service.commentRepository.ListComments(ctx, intelRowKey)
 	if listErr != nil {
@@ -320,6 +347,20 @@ func (service *RoverService) ListComments(ctx context.Context, intelRowKey strin
 		return nil, fmt.Errorf("failed to list comments: %w", listErr)
 	}
 	return items, nil
+}
+
+// assertIntelOwnedBy verifies that the intel identified by rowKey lives in the caller's
+// partition. Intel is partitioned by emailHash+geohash, so a successful lookup is proof
+// of ownership; a miss returns storage.ErrNotFound so callers can respond 404 rather than
+// 403 and avoid confirming that another user's intel exists.
+func (service *RoverService) assertIntelOwnedBy(ctx context.Context, emailHash, geohash, rowKey string) error {
+	partitionKey := emailHash + geohash
+	_, getErr := service.metadataRepository.GetPrivateIntelMetadata(ctx, partitionKey, rowKey)
+	if getErr != nil {
+		log.Warn().Err(getErr).Str("rowKey", rowKey).Msg("intel not found in caller's partition - denying access")
+		return getErr
+	}
+	return nil
 }
 
 func intelDigest(emailHash, geohash string, obfuscatedTs int64) string {
