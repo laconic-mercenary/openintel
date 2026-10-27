@@ -18,16 +18,11 @@ const (
 	HeaderOrigin      = "Origin"
 	ContentTypeJSON   = "application/json"
 	ContentTypeHTML   = "text/html"
-	authTokenGetParam = "x"
 	cookieAuthToken   = "auth_token"
 )
 
 //
 // functions
-
-func AuthTokenGetParam() string {
-	return authTokenGetParam
-}
 
 func HasAllowedOrigin(request *http.Request, allowedOrigins []string) bool {
 	log.Trace().Msg("HasAllowedOrigin")

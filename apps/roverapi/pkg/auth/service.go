@@ -4,9 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
-	"net/url"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -26,16 +24,16 @@ var (
 	ErrEmailerRequired         = errors.New("Emailer is required")
 	ErrAuthTokensRequired      = errors.New("AuthTokens is required")
 	ErrAuthTokensQueryRequired = errors.New("AuthTokensQuery is required")
-	ErrInvalidAuthToken        = errors.New("invalid auth token provided")
 	ErrEmailAndCodeRequired    = errors.New("email and code are required")
 	ErrRateLimiterRequired     = errors.New("rate limiter is required")
 	ErrLoginCodeAlreadySent    = errors.New("a login code has already been sent")
 )
 
 const (
-	authTokenFmt    = "%s$$%s$$%s"
-	authCodeMax     = 1000000 // 6 digit login code
-	authTokenMaxLen = math.MaxUint8
+	authCodeMax        = 1000000 // 6 digit login code
+	authCodeFmt        = "%06d"
+	secondsPerMinute   = 60
+	loginCodeSubjectJP = "ログインコード"
 )
 
 //
@@ -74,11 +72,7 @@ func (service *AuthService) IsEmailFlagged(email string) (bool, error) {
 func (service *AuthService) SendLoginCode(email string) error {
 	log.Trace().Msg("SendLoginCode")
 
-	authToken, authTokenErr := service.newAuthToken(email)
-	if authTokenErr != nil {
-		log.Error().Err(authTokenErr).Msg("error creating auth token")
-		return authTokenErr
-	}
+	authToken := service.authRowKey(email)
 
 	existing, exists, fetchErr := service.authTokenQuery.GetAuthToken(authToken)
 	if fetchErr != nil {
@@ -109,11 +103,7 @@ func (service *AuthService) SendLoginCode(email string) error {
 	}
 
 	sender := config.LoginCodeSenderEmail()
-	link, loginLinkErr := service.newLoginLink(authToken)
-	if loginLinkErr != nil {
-		return loginLinkErr
-	}
-	message := service.formatMessage(link)
+	message := service.formatMessage(authCode, expirySecs)
 	if emailErr := service.emailer.SendEmail(sender, email, message); emailErr != nil {
 		service.authTokens.DeleteAuthToken(authToken)
 		log.Error().Err(emailErr).Msg("error sending email for login link")
@@ -122,42 +112,12 @@ func (service *AuthService) SendLoginCode(email string) error {
 	return nil
 }
 
-func (service *AuthService) GetAuthCode(authToken string) (string, error) {
-	log.Trace().Msg("GetAuthCode")
-	if validation.IsEmptyStr(authToken) {
-		log.Error().Msg("empty auth token provided")
-		return "", ErrInvalidAuthToken
-	}
-	if len(authToken) > authTokenMaxLen {
-		log.Error().Int("tokenLength", len(authToken)).Int("maxLengthAllowed", authTokenMaxLen).Msg("auth token is too long (invalid format)")
-		return "", ErrInvalidAuthToken
-	}
-	if !validation.IsURLEncodedB64(authToken) {
-		log.Error().Str("authToken", authToken).Msg("auth token is not base64 encoded (invalid format)")
-		return "", ErrInvalidAuthToken
-	}
-	token, exists, fetchErr := service.authTokenQuery.GetAuthToken(authToken)
-	if fetchErr != nil {
-		log.Error().Err(fetchErr).Msg("error fetching auth token")
-		return "", fetchErr
-	}
-	if !exists {
-		log.Error().Str("authToken", authToken).Msg("auth token does not exist")
-		return "", ErrInvalidAuthToken
-	}
-	return token.Code, nil
-}
-
 func (service *AuthService) VerifyLoginCode(email string, userProvidedCode string) (bool, error) {
 	log.Trace().Msg("VerifyLoginCode")
 	if validation.IsEmptyStr(email) || validation.IsEmptyStr(userProvidedCode) {
 		return false, ErrEmailAndCodeRequired
 	}
-	authToken, authTokenErr := service.newAuthToken(email)
-	if authTokenErr != nil {
-		log.Error().Err(authTokenErr).Msg("error creating new auth token")
-		return false, authTokenErr
-	}
+	authToken := service.authRowKey(email)
 
 	token, exists, fetchErr := service.authTokenQuery.GetAuthToken(authToken)
 	if fetchErr != nil {
@@ -165,9 +125,10 @@ func (service *AuthService) VerifyLoginCode(email string, userProvidedCode strin
 		return false, fetchErr
 	}
 	if !exists {
-		// discourage logging the token but because it doesn't exist, there's no
-		// compromise on the logging system - also this can expose brute force attempts
-		log.Warn().Str("authToken", authToken).Msg("authToken does not exist")
+		// never log the row key itself - it is derived from the user's email and is
+		// stable for that account, so logging it would write account-identifying
+		// material into log retention
+		log.Warn().Msg("no pending login code for this email")
 		return false, nil
 	}
 	if time.UnixTimestampMs() > token.ExpiryTimestamp {
@@ -213,12 +174,7 @@ func (service *AuthService) DeriveEncryptionSalt(email string) string {
 
 func (service *AuthService) DeleteLoginCode(email string) error {
 	log.Trace().Msg("DeleteLoginCode")
-	authToken, authTokenErr := service.newAuthToken(email)
-	if authTokenErr != nil {
-		log.Error().Err(authTokenErr).Msg("error creating auth token")
-		return authTokenErr
-	}
-	return service.authTokens.DeleteAuthToken(authToken)
+	return service.authTokens.DeleteAuthToken(service.authRowKey(email))
 }
 
 func (service *AuthService) newAuthCode() (string, error) {
@@ -229,43 +185,48 @@ func (service *AuthService) newAuthCode() (string, error) {
 		log.Error().Err(randErr).Msg("error generating login code")
 		return "", randErr
 	}
-	return fmt.Sprintf("%06d", randInt.Int64()), nil
+	return fmt.Sprintf(authCodeFmt, randInt.Int64()), nil
 }
 
-func (service *AuthService) formatMessage(loginLinkUrl string) string {
-	emailMsg := strings.Builder{}
-	emailMsg.WriteString("Your requested login link: <a href=") // TODO translation table for other languages
-	emailMsg.WriteString("\"")
-	emailMsg.WriteString(loginLinkUrl)
-	emailMsg.WriteString("\"")
-	emailMsg.WriteString(">LINK</a>")
+// formatMessage builds the login email. The code is delivered inline rather than behind
+// a link: a URL that reveals the code is a credential that outlives the email it arrived
+// in, and it leaks through browser history, forwarding and link-prefetching scanners.
+//
+// authCode is server-generated and numeric (see newAuthCode), so it is safe to embed
+// in HTML without escaping.
+func (service *AuthService) formatMessage(authCode string, expirySeconds uint) string {
+	expiryMinutes := expirySeconds / secondsPerMinute
+	emailMsg := strings.Builder{} // TODO translation table for other languages
+	emailMsg.WriteString("<p>Your openintel login code - ")
+	emailMsg.WriteString(loginCodeSubjectJP)
+	emailMsg.WriteString("</p>")
+	emailMsg.WriteString(`<p style="font-size:2rem;letter-spacing:0.5rem;font-weight:bold;">`)
+	emailMsg.WriteString(authCode)
+	emailMsg.WriteString("</p>")
+	emailMsg.WriteString("<p>It expires in ")
+	fmt.Fprintf(&emailMsg, "%d", expiryMinutes)
+	emailMsg.WriteString(" minute")
+	if expiryMinutes != 1 {
+		emailMsg.WriteString("s")
+	}
+	emailMsg.WriteString(". If you did not request it, you can ignore this email.</p>")
 	return emailMsg.String()
 }
 
-func (service *AuthService) newAuthToken(email string) (string, error) {
-	log.Trace().Msg("newAuthToken")
-	salt := []byte(security.HashSha256(email))
-	pepper := config.EmailHashPepper()
-	hashedEmail, hashErr := security.Hash(email, salt)
-	if hashErr != nil {
-		log.Error().Err(hashErr).Msg("error hashing email")
-		return "", hashErr
-	}
-	authTokenPlainTxt := fmt.Sprintf(authTokenFmt, hashedEmail, string(salt), pepper)
-	return security.Hash(authTokenPlainTxt, salt)
-}
-
-func (service *AuthService) newLoginLink(authToken string) (string, error) {
-	baseUrl, urlParseErr := url.Parse(config.LoginRedirectURL())
-	if urlParseErr != nil {
-		log.Error().Err(urlParseErr).Msg("error parsing login redirect url")
-		return "", urlParseErr
-	}
-	baseUrl.Path = "/auth/get-code"
-	params := url.Values{}
-	params.Add(server.AuthTokenGetParam(), authToken)
-	baseUrl.RawQuery = params.Encode()
-	return baseUrl.String(), nil
+// authRowKey derives the auth table RowKey for an email.
+//
+// This is an internal lookup key only — it is never sent to the user, never appears in
+// a URL, and is never logged. A keyed hash is therefore sufficient; Argon2 bought no
+// security here while making every unauthenticated call to /auth/email-link and
+// /auth/code-login cost two 64 MB derivations, which was a trivial denial-of-service
+// lever. This matches how roverapi already derives intel partition keys.
+//
+// Note this pepper (AUTH_EMAIL_HASH_PEPPER) is distinct from the encryption salt pepper
+// used by DeriveEncryptionSalt. Changing this one orphans pending login codes; changing
+// that one would make every user's data permanently undecryptable.
+func (service *AuthService) authRowKey(email string) string {
+	log.Trace().Msg("authRowKey")
+	return security.HmacSha256Hex(email, config.EmailHashPepper())
 }
 
 //

@@ -114,72 +114,6 @@ func (handler *AuthHandler) handleCode(writer http.ResponseWriter, request *http
 	server.RespondWithOk(writer, fmt.Appendf(nil, `{"status":"authenticated","redirectUrl":"%s","salt":"%s"}`, redirectUrl, salt))
 }
 
-func (handler *AuthHandler) handleGetCode(writer http.ResponseWriter, request *http.Request) {
-	log.Trace().Msg("handleGetCode")
-
-	timestampNow := time.UnixTimestampMs()
-	logger := logging.NewTracingLogger()
-	defer logger.Debug().Int64("requestElapsedMs", logging.ElapsedMs(timestampNow)).Msg("request finished")
-
-	params := request.URL.Query()
-	authToken := params.Get(server.AuthTokenGetParam())
-	if validation.IsEmptyStr(authToken) {
-		server.RespondWithError(writer, http.StatusBadRequest, nil, "missing auth token param")
-		return
-	}
-
-	authCode, authCodeErr := handler.authService.GetAuthCode(authToken)
-	if authCodeErr != nil {
-		httpStatus := http.StatusServiceUnavailable
-		if errors.Is(authCodeErr, auth.ErrInvalidAuthToken) {
-			httpStatus = http.StatusNotFound
-		}
-		server.RespondWithError(writer, httpStatus, authCodeErr, "error retrieving auth code")
-		return
-	}
-
-	htmlRx := fmt.Sprintf(`<!DOCTYPE html>
-		<html>
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Login Code - ログインコード</title>
-			<style>
-				body {
-					background-color: #000000;
-					color: #ffffff;
-					font-family: Arial, sans-serif;
-					display: flex;
-					justify-content: center;
-					align-items: center;
-					height: 100vh;
-					margin: 0;
-				}
-				.container {
-					text-align: center;
-				}
-				h1 {
-					font-size: 2rem;
-					margin-bottom: 1rem;
-				}
-				p {
-					font-size: 3rem;
-					letter-spacing: 0.5rem;
-					font-weight: bold;
-				}
-			</style>
-		</head>
-		<body>
-			<div class="container">
-				<h1>Login Code - ログインコード</h1>
-				<p>%s</p>
-			</div>
-		</body>
-		</html>
-		`, authCode)
-	server.RespondWithHtml(writer, htmlRx)
-}
-
 func (handler *AuthHandler) handleLogout(writer http.ResponseWriter, request *http.Request) {
 	log.Trace().Msg("handleLogout")
 	http.SetCookie(writer, &http.Cookie{
@@ -348,7 +282,6 @@ func main() {
 	authHandler := newAuthHandler()
 
 	emailLinkHandler := applyMiddleware(http.MethodPost, authHandler.handleEmailLink)
-	getCodeHandler := server.WithMethodCheck(http.MethodGet, authHandler.handleGetCode)
 	codeHandler := applyMiddleware(http.MethodPost, authHandler.handleCode)
 	meHandler := applyMiddleware(http.MethodGet, authHandler.handleMe)
 	logoutHandler := applyMiddleware(http.MethodPost, authHandler.handleLogout)
@@ -356,7 +289,6 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/health", handleHealth)
 	mux.HandleFunc("/auth/email-link", emailLinkHandler)
-	mux.HandleFunc("/auth/get-code", getCodeHandler)
 	mux.HandleFunc("/auth/code-login", codeHandler)
 	mux.HandleFunc("/auth/me", meHandler)
 	mux.HandleFunc("/auth/logout", logoutHandler)
